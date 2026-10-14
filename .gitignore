@@ -1,3 +1,7 @@
 # Full-size originals from the image generator; the game uses the cropped
 # copies in art/portraits.
 Gemini_Generated_Image_*
+
+# Models dropped in the top folder are originals; the game loads its copies
+# from art/ghosts.
+/*.glb
