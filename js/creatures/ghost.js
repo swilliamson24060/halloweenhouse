@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { damp } from '../core/util.js';
 import { NOISE_GLSL } from '../gfx/effects.js';
 import { buildFigure, SLOTS } from './figure.js';
@@ -155,6 +157,67 @@ function makeMaterial(ctx, o) {
   });
 }
 
+// Apparitions modelled elsewhere (glTF in art/ghosts) take the place of the
+// built figure of the same person. Each mesh joins the material slot of the
+// first rule its name matches; scale brings the model to life size and
+// height is where the top of the head comes, for sound and sight lines.
+const GHOST_ART = {
+  eleanor: {
+    src: 'art/ghosts/eleanor.glb',
+    scale: 0.93,
+    height: 1.7,
+    // a pale spectral gown under the black widow's crepe that hides her face
+    slots: [
+      [/glow/i, 'glow'],
+      [/hands/i, 'skin'],
+      [/cameo/i, 'light'],
+      [/crepe|bindings|lantern iron/i, 'dark'],
+      [/./, 'body'],
+    ],
+  },
+};
+
+// Fetching starts as loading begins; models that have arrived by the
+// deadline are used, and anyone missing keeps their built figure.
+export function fetchGhostArt(timeout = 8000) {
+  const got = {};
+  const loader = new GLTFLoader();
+  const jobs = Object.entries(GHOST_ART).map(([who, art]) =>
+    loader.loadAsync(art.src).then(
+      (gltf) => {
+        got[who] = figureFromModel(gltf.scene, art);
+      },
+      () => {}
+    )
+  );
+  return Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, timeout))]).then(() => ({ ...got }));
+}
+
+// The model's meshes merged per slot in figure space: feet on the floor at
+// the origin, facing +z, with only what the ghost shader reads.
+function figureFromModel(scene, art) {
+  scene.updateMatrixWorld(true);
+  const floor = new THREE.Box3().setFromObject(scene).min.y;
+  const fit = new THREE.Matrix4().makeScale(art.scale, art.scale, art.scale).multiply(new THREE.Matrix4().makeTranslation(0, -floor, 0));
+  const parts = {};
+  scene.traverse((o) => {
+    if (!o.isMesh) return;
+    const name = `${o.name} ${o.material ? o.material.name : ''}`;
+    const slot = art.slots.find(([re]) => re.test(name))[1];
+    const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(fit, o.matrixWorld));
+    (parts[slot] ||= []).push(g);
+  });
+  const geo = {};
+  for (const [slot, list] of Object.entries(parts)) {
+    geo[slot] = mergeGeometries(list, false);
+    geo[slot].computeBoundingSphere();
+  }
+  return { geo, height: art.height };
+}
+
 // Faces and figures are shared by every instance of the same person.
 const FACES = new Map();
 const FIGURES = new Map();
@@ -202,7 +265,7 @@ export class Ghost {
     this.mats.dark.uniforms.uWave.value = 0.5;
     this.group = new THREE.Group();
     this.body = new THREE.Group();
-    const fig = figureOf(who, spec);
+    const fig = o.figure || figureOf(who, spec);
     for (const slot of SLOTS) {
       if (!fig.geo[slot]) continue;
       if (slot !== 'glow') {

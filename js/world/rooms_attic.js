@@ -273,7 +273,7 @@ function widowsWalk(ctx) {
   P.at(B, -4.6, DK, 3.2, 2.6, () => P.chair(B, { seat: 'velvet' }));
   ctx.col.addCircle(-4.6, 3.2, 0.3, DK, DK + 1);
 
-  const widow = new Ghost(ctx, 'eleanor', { opacity: 0.9, look: false });
+  const widow = new Ghost(ctx, 'eleanor', { opacity: 0.9, look: false, figure: ctx.ghostArt.eleanor });
   widow.place(-2.4, DK, 4.75, 0);
   ctx.widow = widow;
   let stage = 0;

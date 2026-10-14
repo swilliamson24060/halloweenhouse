@@ -46,5 +46,6 @@ Upload the whole folder (`index.html`, `manifest.webmanifest`, `icons/`, `art/` 
 - `js/creatures/cast.js`: who each apparition was in life (clothes, hair, pose, face); `figure.js` sculpts the bodies and `ghostfaces.js` paints the faces.
 - `js/gfx/portraits.js`: the family portraits, painted in oils at load time with the brushes in `brush.js` and the heads in `face.js`.
 - `art/portraits/`: paintings supplied as images (775×1024 JPEG, no frame or lettering). Each one listed in `ART` in `portraits.js` replaces the drawn portrait of the same name and gets its name lettered on; if a file is missing, the drawn one stays.
+- `art/ghosts/`: apparitions supplied as glTF models (`.glb`, metres, Y up, feet at the origin, facing +Z). Each one listed in `GHOST_ART` in `js/creatures/ghost.js` replaces the built figure of the same person; its meshes are sorted into the ghost shader's material slots by name. If a file is missing, the built figure stays.
 - `js/audio/audio.js`: the sound synthesiser.
 - `js/story.js`: the notes found in the house.

@@ -172,7 +172,7 @@ export const CAST = {
     hair: { style: 'bun' },
     pose: 'lanternHigh',
     face: { age: 40, expr: { sad: 0.8, weep: 0.6 } },
-    look: { color: 0xe2eaf5, glow: 1.2 },
+    look: { color: 0xe2eaf5, glow: 1.2, glowColor: 0xffb060 },
   },
   vey: {
     name: 'Madame Vey, the medium',
