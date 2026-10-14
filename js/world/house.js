@@ -24,6 +24,27 @@ function triToward(B, key, a, b, c, dir) {
   else B.tri(key, a, b, c);
 }
 
+// UVs measured in one frame (metres from `o` along u and v), so the pieces a
+// surface is cut into keep their shingles and boards lined up.
+function frameUV(o, u, v) {
+  return (p) => {
+    const d = p.clone().sub(o);
+    return [d.dot(u), d.dot(v)];
+  };
+}
+
+function quadIn(B, key, uv, a, b, c, d, dir) {
+  const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(d, a));
+  if (n.dot(dir) < 0) [b, d] = [d, b];
+  B.quad(key, a, b, c, d, [...uv(a), ...uv(b), ...uv(c), ...uv(d)]);
+}
+
+function triIn(B, key, uv, a, b, c, dir) {
+  const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a));
+  if (n.dot(dir) < 0) [b, c] = [c, b];
+  B.tri(key, a, b, c, [...uv(a), ...uv(b), ...uv(c)]);
+}
+
 function hang(ctx, info, o = {}) {
   const hinge = o.side === 'R' ? info.hingeR : info.hingeL;
   return new Door(ctx, {
@@ -422,6 +443,12 @@ function mansardFrame(o) {
 
 const MANSARD = { yb: 8.45, top: 11.0, inset: 1.2 };
 
+// The front-left wing's pitched roof: eaves at x0 and x1, ridge at xr, from
+// the mansard (zb) out past the gable (zf), lined t below the shingles. Its
+// right eaves are cut back to cutZ east of x = cut, under the mansard.
+const GABLE = { x0: -7.4, x1: -1.6, xr: -4.5, ye: 8.3, yr: 11.0, zf: 9.0, zb: 5.2, t: 0.16, cut: -2.0, cutZ: 5.95 };
+const gableY = (x) => GABLE.ye + (GABLE.yr - GABLE.ye) * Math.max(0, 1 - Math.abs(x - GABLE.xr) / (GABLE.xr - GABLE.x0));
+
 function slopeFrames() {
   const yb = MANSARD.yb;
   const ht = MANSARD.top - yb;
@@ -436,11 +463,20 @@ function slopeFrames() {
 }
 
 const DORMER = { w: 1.3, h: 1.75, r: 0.55 };
+// depth of the mansard (its lining sits this far inside the shingles) and
+// the height up the slope where the lining starts, just under the knee walls
+const ROOF_T = 0.2;
+const KNEE = 0.6;
 
-// One face of the mansard with holes for its dormers.
+// One face of the mansard with holes for its dormers. Shingles run along the
+// eaves and the boards inside run up the slope, in one frame per face.
 function mansardSlope(ctx, Bout, Bin, S) {
   const k = S.inset / S.ht;
   const P = (s, h, off = 0) => V(S.ax + S.ux * s + S.mx * (h * k + off), S.yb + h, S.az + S.uz * s + S.mz * (h * k + off));
+  const along = V(S.ux, 0, S.uz);
+  const upSlope = P(0, 1).sub(P(0, 0)).normalize();
+  S.uvOut = frameUV(P(0, 0), along, upSlope);
+  S.uvIn = frameUV(P(0, 0, ROOF_T), upSlope, along);
   const sL = (h) => (S.hipA ? h * k : 0);
   const sR = (h) => (S.hipB ? S.L - h * k : S.L);
   const cuts = new Set([0, S.L]);
@@ -462,12 +498,12 @@ function mansardSlope(ctx, Bout, Bin, S) {
     const a1 = Math.max(s0, sL(h1));
     const b1 = Math.min(s1, sR(h1));
     if (b0 - a0 < 1e-3 && b1 - a1 < 1e-3) continue;
-    quadToward(Bout, 'shingle', P(a0, h0), P(b0, h0), P(b1, h1), P(a1, h1), outDir);
+    quadIn(Bout, 'shingle', S.uvOut, P(a0, h0), P(b0, h0), P(b1, h1), P(a1, h1), outDir);
     // inner face (attic side) only above the knee wall
-    const hk = Math.max(h0, 0.6);
+    const hk = Math.max(h0, KNEE);
     const ia0 = Math.max(s0, sL(hk));
     const ib0 = Math.min(s1, sR(hk));
-    quadToward(Bin, 'woodRough', P(ia0, hk, 0.2), P(ib0, hk, 0.2), P(b1, h1, 0.2), P(a1, h1, 0.2), V(S.mx, -0.4, S.mz));
+    quadIn(Bin, 'woodRough', S.uvIn, P(ia0, hk, ROOF_T), P(ib0, hk, ROOF_T), P(b1, h1, ROOF_T), P(a1, h1, ROOF_T), V(S.mx, -0.4, S.mz));
   }
   for (const d of ds) dormer(ctx, Bout, Bin, S, d);
 }
@@ -491,16 +527,24 @@ function dormer(ctx, Bout, Bin, S, d) {
   windowFix(ctx, Bout, W, W.ops[0], { out: 'a', hood: d.arch ? 'arch' : 'flat', intTrim: 'woodRough', sashMat: 'trim' });
   const outDir = V(-S.mx, 0, -S.mz);
   const uDir = V(S.ux, 0, S.uz);
-  // side cheeks
-  for (const [s, dir] of [
-    [s0, uDir.clone().negate()],
-    [s1, uDir],
+  // the roof's outer face and its lining at height y up the slope
+  const outer = (s, y) => base(s, y, y * k);
+  const inner = (s, y) => base(s, y, y * k + ROOF_T);
+  // underside of the little roof: from its eaves (h - 0.08) to its ridge
+  const ridgeAt = (s) => h + r * Math.max(0, 1 - Math.abs(s - d.s) / (w / 2 + 0.08));
+  const ceil = (s) => ridgeAt(s) - 0.08;
+  const top = h + r;
+  const cheekT = 0.06;
+  const sa = s0 + cheekT;
+  const sb = s1 - cheekT;
+  // side cheeks: siding outside; inside, one board wall from the front of the
+  // dormer back through the depth of the roof to its lining
+  for (const [s, si, dir] of [
+    [s0, sa, uDir.clone().negate()],
+    [s1, sb, uDir],
   ]) {
-    const a = base(s, 0);
-    const b = base(s, h);
-    const c = base(s, h, h * k + 0.02);
-    triToward(Bout, 'siding', a, b, c, dir);
-    triToward(Bin, 'woodRough', a.clone().addScaledVector(dir, -0.06), b.clone().addScaledVector(dir, -0.06), c.clone().addScaledVector(dir, -0.06), dir.clone().negate());
+    triToward(Bout, 'siding', base(s, 0), base(s, h), base(s, h, h * k + 0.02), dir);
+    quadToward(Bin, 'woodRough', base(si, 0), base(si, ceil(si)), inner(si, ceil(si)), inner(si, 0), dir.clone().negate());
   }
   // little gable roof
   const ov = 0.12;
@@ -513,15 +557,35 @@ function dormer(ctx, Bout, Bin, S, d) {
   const up = V(0, 1, 0);
   quadToward(Bout, 'shingle', e0f, rf, rb, e0b, up.clone().addScaledVector(uDir, -0.5));
   quadToward(Bout, 'shingle', rf, e1f, e1b, rb, up.clone().addScaledVector(uDir, 0.5));
+  // its ceiling runs back to the roof's lining
   const dn = V(0, -1, 0);
   const lo = (p) => p.clone().add(V(0, -0.08, 0));
-  quadToward(Bin, 'woodRough', lo(e0f), lo(rf), lo(rb), lo(e0b), dn);
-  quadToward(Bin, 'woodRough', lo(rf), lo(e1f), lo(e1b), lo(rb), dn);
-  // front gable and barge boards
+  const c0 = inner(s0 - 0.08, ceil(s0 - 0.08));
+  const c1 = inner(s1 + 0.08, ceil(s1 + 0.08));
+  const cr = inner(d.s, ceil(d.s));
+  quadToward(Bin, 'woodRough', lo(e0f), lo(rf), cr, c0, dn);
+  quadToward(Bin, 'woodRough', lo(rf), lo(e1f), c1, cr, dn);
+  // close the main roof round it: shingles down onto the little roof...
+  const toOut = V(-S.mx, 0.4, -S.mz);
+  triIn(Bout, 'shingle', S.uvOut, outer(s0, ridgeAt(s0)), outer(d.s, top), outer(s0, top), toOut);
+  triIn(Bout, 'shingle', S.uvOut, outer(d.s, top), outer(s1, ridgeAt(s1)), outer(s1, top), toOut);
+  // ...and on the attic side, lining round the opening: jambs as thick as the
+  // cheeks, and a head from the dormer's ceiling up to the lining above
+  const toIn = V(S.mx, -0.4, S.mz);
+  quadIn(Bin, 'woodRough', S.uvIn, inner(s0, KNEE), inner(sa, KNEE), inner(sa, top), inner(s0, top), toIn);
+  quadIn(Bin, 'woodRough', S.uvIn, inner(sb, KNEE), inner(s1, KNEE), inner(s1, top), inner(sb, top), toIn);
+  quadIn(Bin, 'woodRough', S.uvIn, inner(sa, ceil(sa)), inner(d.s, ceil(d.s)), inner(d.s, top), inner(sa, top), toIn);
+  quadIn(Bin, 'woodRough', S.uvIn, inner(d.s, ceil(d.s)), inner(sb, ceil(sb)), inner(sb, top), inner(d.s, top), toIn);
+  // front gable and barge boards; boarded on the inside too
   const g0 = base(s0, h, -0.03);
   const g1 = base(s1, h, -0.03);
   const g2 = base(d.s, h + r - 0.05, -0.03);
   triToward(Bout, 'siding', g0, g1, g2, outDir);
+  const gi = (s, y) => base(s, y, 0.06);
+  const inward = outDir.clone().negate();
+  triToward(Bin, 'woodRough', gi(sa, h), gi(sb, h), gi(d.s, ceil(d.s)), inward);
+  triToward(Bin, 'woodRough', gi(sa, h), gi(d.s, ceil(d.s)), gi(sa, ceil(sa)), inward);
+  triToward(Bin, 'woodRough', gi(sb, h), gi(sb, ceil(sb)), gi(d.s, ceil(d.s)), inward);
   Bout.box('trim', (e0f.x + rf.x) / 2, (e0f.y + rf.y) / 2 - 0.04, (e0f.z + rf.z) / 2, 0.01, 0.01, 0.01);
   for (const [a, b] of [
     [e0f, rf],
@@ -550,19 +614,57 @@ function atticFloor(ctx, H) {
   fl(1, 2, -2.9, 6);
   fl(2, 7, -8, 6);
   fl(-7, -2, 6, 8.5);
-  // knee walls
-  const kw = (x1, z1, x2, z2) => wall(ctx, Ba, x1, z1, x2, z2, AF, 9.15, { t: 0.1, a: 'woodRough', b: null, edge: 'woodRough' });
-  kw(-6.88, -7.88, -6.88, 8.4);
+  // knee walls, boarded on both faces (they run the other way round the
+  // attic from the cellar's walls, so side A faces the eaves); under the
+  // wing's pitched roof they stop inside its depth
+  const kw = (x1, z1, x2, z2, top = 9.15) => wall(ctx, Ba, x1, z1, x2, z2, AF, top, { t: 0.1, a: 'woodRough', b: 'woodRough', edge: 'woodRough' });
+  kw(-6.88, -7.88, -6.88, 5.15);
+  kw(-6.88, 5.15, -6.88, 8.4, 8.7);
   kw(6.88, 3.9, 6.88, -7.88);
   kw(6.88, -7.88, -6.88, -7.88);
-  kw(-2, 5.92, 4.85, 5.92);
-  kw(-2.08, 8.4, -2.08, 5.92);
+  kw(-1.98, 5.92, 4.85, 5.92);
+  kw(-2.08, 8.4, -2.08, 5.92, 8.67);
+  Ba.boxMM('woodRough', -2.13, AF, 5.87, -1.98, 8.62, 5.97);
   // keep the player off the steep slopes
   const S = slopeFrames();
   ctx.col.addBox(-7.4, 9.0, -8.4, -6.25, 11.2, 5.2);
   ctx.col.addBox(6.25, 9.0, -8.4, 7.4, 11.2, 3.9);
   ctx.col.addBox(-7.4, 9.0, -8.4, 7.4, 11.2, -7.25);
   ctx.col.addBox(-2, 9.0, 5.25, 4.9, 11.2, 6.4);
+  // and under the wing's roof, where it comes down to the floor: the walkway
+  // between these keeps your head at least 0.18 m under the lining
+  ctx.col.addBox(GABLE.x0, AF + 0.5, GABLE.zb, -5.5, GABLE.yr, 8.6);
+  ctx.col.addBox(-3.5, AF + 0.5, GABLE.zb, GABLE.x1, GABLE.yr, 8.6);
+  // Where the wing's roof meets the mansard, the shingled fillers only face
+  // outward: board the gaps on the attic side. First the step down from the
+  // ceiling to the wing's roof...
+  const k = MANSARD.inset / (MANSARD.top - MANSARD.yb);
+  const zb = GABLE.zb;
+  const lining = (x) => gableY(x) - GABLE.t - 0.04;
+  const A = V(-7.35, lining(-7.35), zb);
+  const B = V(-7.35, MANSARD.yb, zb);
+  const C = V(-7.4 + MANSARD.inset + 0.05, MANSARD.top, zb);
+  const G = V(GABLE.xr, MANSARD.top, zb);
+  const F = V(GABLE.xr, lining(GABLE.xr), zb);
+  const D = V(GABLE.cut, MANSARD.top, zb);
+  const E = V(GABLE.cut, lining(GABLE.cut), zb);
+  for (const [p, q, r] of [
+    [A, B, C],
+    [A, C, G],
+    [A, G, F],
+    [G, D, E],
+    [G, E, F],
+  ]) {
+    triToward(Ba, 'woodRough', p, q, r, V(0, 0, -1));
+  }
+  // ...then the end of the front slope, above the wing's roof (seen from the
+  // front of the attic), and the end of its depth (seen from the side)
+  const x = GABLE.cut;
+  const zLin = S.front.az - MANSARD.inset - ROOF_T;
+  const frontY = (z) => MANSARD.yb + (S.front.az - ROOF_T - z) / k;
+  const y0 = gableY(x) - GABLE.t - 0.02;
+  quadToward(Ba, 'woodRough', V(x, y0, zb), V(x, frontY(zb), zb), V(x, frontY(GABLE.cutZ), GABLE.cutZ), V(x, y0, GABLE.cutZ), V(1, 0, 0));
+  triToward(Ba, 'woodRough', V(x, MANSARD.top, zLin), V(x, frontY(zb), zb), V(x, MANSARD.top, zb), V(-1, 0, 0));
   for (const k of Object.keys(S)) mansardSlope(ctx, ctx.B.ext, Ba, S[k]);
   // ceiling under the deck, with beams
   ceilRect(Ba, 'woodRough', -6.2, 6.2, -7.2, 5.2, Y.atticTop);
@@ -726,7 +828,7 @@ function shell(ctx, H) {
   ctx.col.addBox(-4.6, D, -2.4, -3.8, 13.1, -1.6);
   ctx.col.addBox(3.0, D, -6.4, 3.8, 12.8, -5.6);
   // fillers where the gable roof meets the mansard
-  triToward(Be, 'shingle', V(-7.4, 8.4, 5.2), V(-6.2, 11.0, 5.2), V(-4.5, 11.0, 5.2), V(0, 0, 1));
+  triToward(Be, 'shingle', V(-7.4, 8.3, 5.2), V(-6.2, 11.0, 5.2), V(-4.5, 11.0, 5.2), V(0, 0, 1));
   triToward(Be, 'shingle', V(-4.5, 11.0, 5.2), V(-2.0, 11.0, 5.2), V(-2.0, 8.62, 5.2), V(0, 0, 1));
   triToward(Be, 'shingle', V(-2.0, 8.45, 6.4), V(-2.0, 11.0, 5.2), V(-2.0, 8.62, 5.2), V(-1, 0, 0));
   porch(ctx, Be, H);
@@ -744,24 +846,31 @@ function chimney(Be, x0, x1, z0, z1, y0, y1, base = false) {
 }
 
 function gableWing(ctx, Be) {
-  const x0 = -7.4;
-  const x1 = -1.6;
-  const xr = -4.5;
-  const ye = 8.3;
-  const yr = 11.0;
-  const zf = 9.0;
-  const zb = 5.2;
+  const { x0, x1, xr, ye, yr, zf, zb, t } = GABLE;
   const Ba = ctx.B.at;
+  const dn = (p) => p.clone().add(V(0, -t, 0));
   const L = [V(x0, ye, zb), V(x0, ye, zf), V(xr, yr, zf), V(xr, yr, zb)];
-  const R = [V(x1, ye, zf), V(x1, ye, zb), V(xr, yr, zb), V(xr, yr, zf)];
   quadToward(Be, 'shingle', ...L, V(-1, 1, 0));
-  quadToward(Be, 'shingle', ...R, V(1, 1, 0));
-  const dn = (p) => p.clone().add(V(0, -0.16, 0));
   quadToward(Ba, 'woodRough', ...L.map(dn), V(1, -1, 0));
-  quadToward(Ba, 'woodRough', ...R.map(dn), V(-1, -1, 0));
+  // East of x = -2 the right slope's eaves pass under the mansard, inside the
+  // attic, so that strip only starts behind the front knee wall. Both pieces
+  // take their UVs from one frame.
+  const yc = gableY(GABLE.cut);
+  const R = [
+    [V(GABLE.cut, yc, zf), V(GABLE.cut, yc, zb), V(xr, yr, zb), V(xr, yr, zf)],
+    [V(x1, ye, zf), V(x1, ye, GABLE.cutZ), V(GABLE.cut, yc, GABLE.cutZ), V(GABLE.cut, yc, zf)],
+  ];
+  const along = V(0, 0, -1);
+  const upSlope = V(xr - x1, yr - ye, 0).normalize();
+  const uvOut = frameUV(V(x1, ye, zf), along, upSlope);
+  const uvIn = frameUV(V(x1, ye - t, zf), upSlope, along);
+  for (const q of R) {
+    quadIn(Be, 'shingle', uvOut, ...q, V(1, 1, 0));
+    quadIn(Ba, 'woodRough', uvIn, ...q.map(dn), V(-1, -1, 0));
+  }
   // fascia along the eaves
   Be.boxMM('trim', x0 - 0.04, ye - 0.22, zb, x0 + 0.04, ye + 0.02, zf);
-  Be.boxMM('trim', x1 - 0.04, ye - 0.22, zb, x1 + 0.04, ye + 0.02, zf);
+  Be.boxMM('trim', x1 - 0.04, ye - 0.22, 6.0, x1 + 0.04, ye + 0.02, zf);
   // gable wall with an arched attic window
   const sh = new THREE.Shape();
   sh.moveTo(-7.15, 8.3);
@@ -779,6 +888,12 @@ function gableWing(ctx, Be) {
   sh.holes.push(hole);
   Be.shape({ front: 'siding', back: null, side: 'trim' }, sh, 0.15, mat(0, 0, 8.5), { curveSegments: 14 });
   Ba.shape({ front: null, back: 'woodRough', side: null }, sh, 0.15, mat(0, 0, 8.36), { curveSegments: 14 });
+  // the gable is solid to walk into; you can still see through its window
+  ctx.col.addBox(-7.15, Y.attic, 8.36, -5.0, 10.9, 8.5);
+  ctx.col.addBox(-4.0, Y.attic, 8.36, -1.85, 10.9, 8.5);
+  ctx.col.addBox(-5.0, Y.attic, 8.36, -4.0, 8.8, 8.5);
+  ctx.col.addBox(-5.0, 10.2, 8.36, -4.0, 10.9, 8.5);
+  ctx.col.addBox(-5.0, 8.8, 8.36, -4.0, 10.2, 8.5).see = true;
   // arched glass + frame
   const gs = new THREE.Shape();
   gs.moveTo(-5.0, 8.8);
