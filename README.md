@@ -14,7 +14,7 @@ Then open http://localhost:8000.
 
 ## Put it online
 
-Upload the whole folder (`index.html`, `manifest.webmanifest`, `icons/` and `js/`) to any static host: GitHub Pages, Netlify, Cloudflare Pages, or your own server. Three.js and the fonts load from public CDNs, so visitors need an internet connection. Serve it over HTTPS: phones only allow full screen, screen wake lock and vibration on secure pages.
+Upload the whole folder (`index.html`, `manifest.webmanifest`, `icons/`, `art/` and `js/`) to any static host: GitHub Pages, Netlify, Cloudflare Pages, or your own server. Three.js and the fonts load from public CDNs, so visitors need an internet connection. Serve it over HTTPS: phones only allow full screen, screen wake lock and vibration on secure pages.
 
 ## Controls
 
@@ -45,5 +45,6 @@ Upload the whole folder (`index.html`, `manifest.webmanifest`, `icons/` and `js/
 - `js/creatures/`: ghosts, spiders, snakes, bats, crows and rats.
 - `js/creatures/cast.js`: who each apparition was in life (clothes, hair, pose, face); `figure.js` sculpts the bodies and `ghostfaces.js` paints the faces.
 - `js/gfx/portraits.js`: the family portraits, painted in oils at load time with the brushes in `brush.js` and the heads in `face.js`.
+- `art/portraits/`: paintings supplied as images (775×1024 JPEG, no frame or lettering). Each one listed in `ART` in `portraits.js` replaces the drawn portrait of the same name and gets its name lettered on; if a file is missing, the drawn one stays.
 - `js/audio/audio.js`: the sound synthesiser.
 - `js/story.js`: the notes found in the house.

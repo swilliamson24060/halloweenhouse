@@ -1397,3 +1397,51 @@ export function buildPortraits(renderer) {
   }
   return out;
 }
+
+// Paintings supplied as image files (art/portraits) take the place of the
+// drawn portraits. Fetching starts as loading begins; whatever has arrived
+// by the deadline is hung, and anything missing or late leaves the drawn
+// portrait where it is (a texture is never resized once it is on the GPU).
+const ART = {
+  josiah: 'art/portraits/josiah.jpg',
+  josiah_empty: 'art/portraits/josiah_empty.jpg',
+};
+
+export function fetchPortraitArt(timeout = 8000) {
+  const got = [];
+  const jobs = Object.entries(ART).map(([key, src]) => {
+    const img = new Image();
+    img.src = src;
+    return img.decode().then(
+      () => got.push([key, img]),
+      () => {}
+    );
+  });
+  return Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, timeout))]).then(() => got.slice());
+}
+
+// Fill the frame with the painting (cropping whatever does not fit its
+// proportions) and letter the sitter's name across the foot, as on the rest.
+function finishArt(img, key) {
+  const P = PORTRAITS[key.replace(/_empty$/, '')];
+  const ch = Math.min(1024, img.naturalHeight);
+  const cw = Math.round((ch * W) / H);
+  const c = canvas(cw, ch);
+  const g = c.getContext('2d');
+  const s = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
+  const dw = img.naturalWidth * s;
+  const dh = img.naturalHeight * s;
+  g.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+  g.scale(cw / W, ch / H);
+  inscription(g, P.title, P.scratched, seeded(P.seed * 7919));
+  return c;
+}
+
+export function applyPortraitArt(textures, art) {
+  for (const [key, img] of art) {
+    const t = textures[key];
+    if (!t) continue;
+    t.image = finishArt(img, key);
+    t.needsUpdate = true;
+  }
+}

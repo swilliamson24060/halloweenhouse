@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildTextures } from './gfx/textures.js';
+import { fetchPortraitArt, applyPortraitArt } from './gfx/portraits.js';
 import { buildMaterials, makeEnvironment } from './gfx/materials.js';
 import { GeoBuilder } from './core/geo.js';
 import { CollisionWorld } from './core/collision.js';
@@ -125,9 +126,12 @@ export class Game {
   async load(progress) {
     const ctx = this.ctx;
     const r = this.renderer;
+    const art = fetchPortraitArt();
     progress(0.02, 'Painting the wallpaper…');
     await nextFrame();
     ctx.tex = await buildTextures(r, (p) => progress(0.02 + p * 0.4, 'Painting the wallpaper…'));
+    progress(0.42, 'Hanging the portraits…');
+    applyPortraitArt(ctx.tex.portraits, await art);
     progress(0.44, 'Polishing the brass…');
     await nextFrame();
     ctx.env = makeEnvironment(r);
