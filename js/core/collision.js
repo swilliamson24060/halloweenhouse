@@ -16,6 +16,14 @@ export class CollisionWorld {
     this.terrainTag = () => 'grass';
     this._stamp = 0;
     this._found = [];
+    // While set, new colliders are shrunk by this much on every side. Used
+    // for furniture, so the walker can brush past an edge instead of
+    // snagging on it a hand's width early.
+    this.inset = 0;
+  }
+
+  _shrink(h) {
+    return this.inset > 0 ? Math.max(Math.min(h, 0.06), h - this.inset) : h;
   }
 
   _k(ix, iz) {
@@ -42,12 +50,16 @@ export class CollisionWorld {
   }
 
   addBox(minX, minY, minZ, maxX, maxY, maxZ, tag = null) {
+    const cx = (minX + maxX) / 2;
+    const cz = (minZ + maxZ) / 2;
+    const hx = this._shrink(Math.abs(maxX - minX) / 2);
+    const hz = this._shrink(Math.abs(maxZ - minZ) / 2);
     const c = {
       type: BOX,
-      minX: Math.min(minX, maxX),
-      maxX: Math.max(minX, maxX),
-      minZ: Math.min(minZ, maxZ),
-      maxZ: Math.max(minZ, maxZ),
+      minX: cx - hx,
+      maxX: cx + hx,
+      minZ: cz - hz,
+      maxZ: cz + hz,
       minY: Math.min(minY, maxY),
       maxY: Math.max(minY, maxY),
       enabled: true,
@@ -62,12 +74,14 @@ export class CollisionWorld {
   // Rotated rectangle: centre, half extents along its local axes, yaw angle.
   addOBB(cx, cz, hx, hz, angle, minY, maxY, tag = null) {
     if (Math.abs(Math.sin(angle)) < 1e-6 || Math.abs(Math.cos(angle)) < 1e-6) {
-      // axis aligned after all
+      // axis aligned after all (addBox applies any inset)
       const swap = Math.abs(Math.sin(angle)) > 0.5;
       const ex = swap ? hz : hx;
       const ez = swap ? hx : hz;
       return this.addBox(cx - ex, minY, cz - ez, cx + ex, maxY, cz + ez, tag);
     }
+    hx = this._shrink(hx);
+    hz = this._shrink(hz);
     const c = {
       type: OBB,
       cx,
@@ -99,6 +113,7 @@ export class CollisionWorld {
   }
 
   addCircle(cx, cz, r, minY, maxY, tag = null) {
+    r = this._shrink(r);
     const c = { type: CIRCLE, cx, cz, r, minY, maxY, enabled: true, tag, _q: 0 };
     this.colliders.push(c);
     this._insert(c, cx - r, cz - r, cx + r, cz + r);
@@ -114,6 +129,7 @@ export class CollisionWorld {
 
   // A circle that will move around inside `bounds` [x0, z0, x1, z1].
   addDynamicCircle(cx, cz, r, minY, maxY, bounds) {
+    r = this._shrink(r);
     const c = { type: CIRCLE, cx, cz, r, minY, maxY, enabled: true, tag: 'dynamic', _q: 0 };
     this.colliders.push(c);
     this._insert(c, bounds[0] - r, bounds[1] - r, bounds[2] + r, bounds[3] + r);

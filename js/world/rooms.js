@@ -115,6 +115,8 @@ export async function furnish(ctx, progress) {
   ctx.ghosts = new Apparitions(ctx);
   ctx.flags = ctx.director.flags;
 
+  // furniture collides a few centimetres inside its visible edges
+  ctx.col.inset = 0.05;
   groundRooms(ctx);
   progress(0.3);
   await nextFrame();
@@ -125,6 +127,7 @@ export async function furnish(ctx, progress) {
   progress(0.65);
   await nextFrame();
   cellarRooms(ctx);
+  ctx.col.inset = 0;
   progress(0.8);
   await nextFrame();
   outside(ctx);

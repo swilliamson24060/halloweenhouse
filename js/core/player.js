@@ -13,7 +13,7 @@ export class Player {
     this.vel = new THREE.Vector3();
     this.yaw = 0;
     this.pitch = 0;
-    this.radius = 0.28;
+    this.radius = 0.22; // slim enough for furnished rooms and 0.8 m doors
     this.height = 1.72;
     this.eye = 1.62;
     this.walkSpeed = 2.0;

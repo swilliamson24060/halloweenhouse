@@ -557,11 +557,12 @@ function sewing(ctx) {
   const H = ctx.house;
   P.at(B, 6.45, FF, -2.0, -Math.PI / 2, () => P.sewingMachine(B));
   ctx.col.addBox(6.2, FF, -2.5, 6.85, FF + 1.1, -1.5);
-  P.at(B, 2.75, FF, -0.75, Math.PI / 2, () => {
+  // cutting table against the south wall, clear of the door
+  P.at(B, 4.0, FF, -0.45, 0, () => {
     P.table(B, { w: 1.3, d: 0.7, h: 0.76 });
     for (let i = 0; i < 3; i++) B.cyl(i % 2 ? 'velvet' : 'linen', -0.35 + i * 0.3, 0.84, 0.05, 0.08, 0.08, 0.6, 12, { rx: Math.PI / 2 });
   });
-  ctx.col.addBox(2.07, FF, -1.45, 3.15, FF + 0.8, -0.1);
+  ctx.col.addBox(3.3, FF, -0.85, 4.7, FF + 0.8, -0.07);
   P.at(B, 2.65, FF, -3.4, 0.6, () => P.spinningWheel(B));
   ctx.col.addCircle(2.65, -3.4, 0.45, FF, FF + 1.3);
   for (let i = 0; i < 8; i++) B.box(i % 2 ? 'velvetGreen' : 'velvet', 6.7, FF + 0.05 + i * 0.06, -3.5 + (i % 3) * 0.05, 0.25, 0.05, 0.6, 0.1 * i);
@@ -570,15 +571,16 @@ function sewing(ctx) {
   B.box('redGlow', 4.5, FF + 0.012, -3.95, 0.88, 0.012, 0.04);
   const red = ctx.lights.add({ pos: V(4.5, FF + 0.25, -3.6), color: 0xff2010, intensity: 1.2, distance: 3.5, flicker: 'pulse', room: 'sewing' });
   void red;
-  // dress forms that creep closer when you look away
+  // dress forms that creep closer when you look away; they keep a metre
+  // clear of the door and never bunch up into a wall
   const forms = [];
-  const bounds = [2.5, -3.6, 6.4, -0.4];
+  const bounds = [3.0, -3.6, 6.4, -0.4];
   const spots = [
     [3.6, -3.2],
     [5.6, -3.3],
     [6.2, -0.7],
-    [3.5, -1.9],
-    [5.0, -0.6],
+    [3.9, -2.1],
+    [5.4, -1.1],
   ];
   spots.forEach(([x, z], i) => {
     const fb = new GeoBuilder('form');
@@ -606,6 +608,7 @@ function sewing(ctx) {
       const step = Math.min(0.4, dist - 1.2);
       const nx = Math.min(bounds[2], Math.max(bounds[0], p.x + (dx / dist) * step));
       const nz = Math.min(bounds[3], Math.max(bounds[1], p.z + (dz / dist) * step));
+      if (forms.some((o) => o !== f && Math.hypot(o.g.position.x - nx, o.g.position.z - nz) < 0.9)) continue;
       p.set(nx, FF, nz);
       f.g.rotation.y = Math.atan2(dx, dz);
       f.c.cx = nx;

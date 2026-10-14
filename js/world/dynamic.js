@@ -57,7 +57,10 @@ export class Door {
     // closed collider across the opening
     const W = o.wallFrame;
     const mid = o.hinge.clone().add(new THREE.Vector3(Math.cos(o.yaw) * sx * (o.width / 2), 0, -Math.sin(o.yaw) * sx * (o.width / 2)));
+    const inset = ctx.col.inset;
+    ctx.col.inset = 0; // a closed door fills its whole opening
     this.col = ctx.col.addOBB(mid.x, mid.z, o.width / 2, 0.06, W ? W.ang : -o.yaw, o.hinge.y, o.hinge.y + o.height);
+    ctx.col.inset = inset;
     this.col.door = this;
     this.mid = mid;
     this._apply();

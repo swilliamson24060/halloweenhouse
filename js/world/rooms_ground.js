@@ -364,8 +364,9 @@ function parlor(ctx) {
   ctx.col.addBox(4.3, GF, 0.95, 5.2, GF + 0.95, 2.95);
   P.at(B, 5.75, GF, 0.7, 0.35, () => P.armchair(B));
   ctx.col.addCircle(5.75, 0.7, 0.42, GF, GF + 1.2);
-  P.at(B, 5.7, GF, 3.35, Math.PI - 0.5, () => P.armchair(B, { mat: 'uphGreen' }));
-  ctx.col.addCircle(5.7, 3.35, 0.42, GF, GF + 1.2);
+  // set back far enough to leave a way in to the hearth
+  P.at(B, 5.5, GF, 3.65, Math.PI - 0.5, () => P.armchair(B, { mat: 'uphGreen' }));
+  ctx.col.addCircle(5.5, 3.65, 0.42, GF, GF + 1.2);
   P.at(B, 5.45, GF, 1.95, 0, () => {
     P.table(B, { w: 0.45, d: 0.8, h: 0.45 });
     for (const [x, z] of [
@@ -530,15 +531,17 @@ function library(ctx) {
   K.candles([lampPos], 'library', { color: 0xffc070, intensity: 3.2, distance: 6, scale: 0.03 });
   P.at(B, 4.5, GF, -2.75, 0, () => P.chair(B, { seat: 'uphGreen' }));
   ctx.col.addCircle(4.5, -2.75, 0.3, GF, GF + 1);
-  P.at(B, 3.0, GF, -1.1, 0, () => P.globe(B));
-  ctx.col.addCircle(3.0, -1.1, 0.3, GF, GF + 1.3);
-  P.at(B, 5.95, GF, -1.25, -2.4, () => P.armchair(B, { mat: 'uphGreen' }));
-  ctx.col.addCircle(5.95, -1.25, 0.42, GF, GF + 1.2);
+  // globe in the corner and the armchair tucked against the shelves, so
+  // the way between the two doors and round the desk stays open
+  P.at(B, 2.95, GF, -3.05, 0, () => P.globe(B));
+  ctx.col.addCircle(2.95, -3.05, 0.3, GF, GF + 1.3);
+  P.at(B, 6.0, GF, -0.95, -2.4, () => P.armchair(B, { mat: 'uphGreen' }));
+  ctx.col.addCircle(6.0, -0.95, 0.42, GF, GF + 1.2);
   K.note(B, 4.2, GF + 0.785, -2.0, 0.2, 'diary', {
-    onRead: () => setTimeout(() => ctx.audio.whisper(V(5.95, 1.8, -1.25), { gain: 0.7 }), 600),
+    onRead: () => setTimeout(() => ctx.audio.whisper(V(6.0, 1.8, -0.95), { gain: 0.7 }), 600),
   });
   for (const [x, z, n] of [
-    [3.3, -2.9, 5],
+    [3.55, -3.25, 5],
     [5.6, -3.2, 3],
     [2.9, -0.55, 4],
   ]) {

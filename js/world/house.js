@@ -642,8 +642,9 @@ function cellar(ctx, H) {
   W = bw(3, -4, 7, -4, [{ at: 1.5, w: 1.0, y0: CF, y1: CF + 2.0, kind: 'door' }]);
   H.wineGate = doorFix(ctx, Bc, W, W.ops[0], { a: 'brick', b: 'brick' });
   bw(3, -8, 3, -4);
-  // kitchen stair down
-  stairs(ctx, Bc, { x: -2.53, z: -7.4, dir: [0, 1], width: 0.86, run: 4.5, y0: CF, y1: Y.g, steps: 16, rail: 'both', sideCollide: 'both', tread: 'fl_cellar', riser: 'woodRough', side: 'woodRough', tag: 'wood', topNewel: false });
+  // kitchen stair down, ending a metre short of the back wall so there is a
+  // landing to step off onto before turning into the cellar
+  stairs(ctx, Bc, { x: -2.53, z: -6.8, dir: [0, 1], width: 0.86, run: 3.9, y0: CF, y1: Y.g, steps: 16, rail: 'both', sideCollide: 'both', tread: 'fl_cellar', riser: 'woodRough', side: 'woodRough', tag: 'wood', topNewel: false });
   Bc.quad('woodRough', V(-2, CT, -7.85), V(-3.05, CT, -7.85), V(-3.05, Y.g, -7.85), V(-2, Y.g, -7.85));
 }
 
