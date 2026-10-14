@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ravenmoor House</title>
+<meta name="description" content="A first-person walkthrough of a haunted Victorian house, built with Three.js.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&display=swap">
+<style>
+/* Layout: one full-bleed canvas; every overlay is a mourning-card panel or
+   a quiet caption laid over it. Dark-only by design. */
+:root {
+  --ink: #0a090b;
+  --card: #121014;
+  --bone: #d8cfbc;
+  --ash: #8d8577;
+  --brass: #b0915a;
+  --blood: #7c2b26;
+  --display: "IM Fell English SC", "IM Fell English", Georgia, "Times New Roman", serif;
+  --body: "IM Fell English", Georgia, "Times New Roman", serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--body);
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.layer { position: fixed; inset: 0; pointer-events: none; }
+[hidden] { display: none !important; }
+
+/* ---------- title card ---------- */
+#title {
+  pointer-events: auto;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: radial-gradient(ellipse at 50% 40%, rgba(20,18,24,0.55), rgba(5,4,6,0.94) 70%);
+  overflow-y: auto;
+}
+.card {
+  width: min(560px, 100%);
+  box-sizing: border-box;
+  background: var(--card);
+  border: 1px solid rgba(216,207,188,0.28);
+  outline: 1px solid rgba(216,207,188,0.12);
+  outline-offset: 6px;
+  padding: clamp(22px, 5vw, 40px);
+  text-align: center;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.7);
+}
+.est { font-family: var(--display); letter-spacing: 0.32em; font-size: 0.78rem; color: var(--ash); margin: 0 0 10px; }
+h1 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(2.6rem, 9vw, 4.4rem);
+  letter-spacing: 0.12em;
+  line-height: 1;
+  margin: 0;
+  text-wrap: balance;
+}
+.rule { display: flex; align-items: center; gap: 12px; color: var(--brass); margin: 18px auto; width: 70%; }
+.rule::before, .rule::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.5; }
+.epigraph { font-style: italic; color: var(--bone); opacity: 0.86; font-size: 1.08rem; line-height: 1.5; margin: 0 auto 6px; max-width: 30em; }
+.attrib { color: var(--ash); font-size: 0.9rem; margin: 0 0 22px; }
+.controls {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  text-align: left;
+  font-size: 0.95rem;
+  margin: 0 auto 22px;
+  max-width: 340px;
+  color: var(--bone);
+}
+.controls dt { font-family: var(--display); letter-spacing: 0.08em; color: var(--brass); white-space: nowrap; }
+.controls dd { margin: 0; color: var(--bone); opacity: 0.9; }
+.touch-only { display: none; }
+body.touch .touch-only { display: revert; }
+body.touch .controls.touch-only { display: grid; }
+body.touch .desk-only { display: none; }
+.row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 18px; margin: 0 0 18px; }
+label.inline { display: flex; align-items: center; gap: 8px; font-size: 0.95rem; color: var(--ash); }
+select, input[type="range"] { accent-color: var(--brass); }
+select {
+  background: var(--ink);
+  color: var(--bone);
+  border: 1px solid rgba(216,207,188,0.3);
+  font-family: var(--body);
+  font-size: 0.95rem;
+  padding: 4px 8px;
+}
+button {
+  font-family: var(--display);
+  letter-spacing: 0.14em;
+  font-size: 1.05rem;
+  color: var(--ink);
+  background: var(--bone);
+  border: 0;
+  padding: 12px 30px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, opacity 0.2s;
+}
+button:hover:not(:disabled), button:focus-visible { background: var(--brass); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+button:disabled { opacity: 0.45; cursor: progress; }
+button.quiet { background: transparent; color: var(--bone); border: 1px solid rgba(216,207,188,0.3); }
+button.quiet:hover { color: var(--ink); }
+.loading { height: 2px; background: rgba(216,207,188,0.12); margin: 14px auto 8px; width: 70%; overflow: hidden; }
+.loading i { display: block; height: 100%; width: 0; background: var(--brass); transition: width 0.25s; }
+.status { font-size: 0.88rem; color: var(--ash); font-style: italic; min-height: 1.3em; margin: 0; }
+.fine { font-size: 0.82rem; color: var(--ash); margin: 18px 0 0; }
+
+/* ---------- HUD ---------- */
+#crosshair {
+  position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px;
+  border-radius: 50%; background: rgba(216,207,188,0.55); transition: transform 0.15s, background 0.15s;
+}
+#crosshair.on { transform: scale(2.2); background: var(--brass); }
+#prompt {
+  position: absolute; left: 50%; top: calc(50% + 34px); transform: translateX(-50%);
+  font-family: var(--display); letter-spacing: 0.12em; font-size: 1rem; color: var(--bone);
+  text-shadow: 0 0 8px #000, 0 0 2px #000; white-space: nowrap; opacity: 0; transition: opacity 0.2s;
+}
+#prompt.on { opacity: 0.95; }
+#prompt kbd {
+  font-family: var(--display); border: 1px solid rgba(216,207,188,0.5); padding: 0 6px; margin-right: 8px; font-size: 0.85rem;
+}
+#caption {
+  position: absolute; left: 0; right: 0; top: calc(14% + env(safe-area-inset-top, 0px)); text-align: center;
+  font-family: var(--display); font-size: clamp(1.4rem, 4vw, 2.2rem); letter-spacing: 0.22em; color: var(--bone);
+  text-shadow: 0 0 18px #000, 0 0 4px #000; opacity: 0; transition: opacity 1.6s; padding: 0 16px;
+}
+#caption.on { opacity: 0.9; }
+#counter {
+  position: absolute; right: 16px; top: calc(14px + env(safe-area-inset-top, 0px));
+  font-family: var(--display); letter-spacing: 0.14em; font-size: 0.86rem; color: var(--ash);
+  text-shadow: 0 0 6px #000; text-align: right; font-variant-numeric: tabular-nums;
+}
+#counter b { color: var(--bone); font-weight: 400; font-size: 1.05rem; }
+#counter.pulse b { color: var(--brass); }
+#toast {
+  position: absolute; left: 50%; bottom: calc(16% + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  max-width: min(90vw, 36em); text-align: center; font-style: italic; font-size: 1.1rem; color: var(--bone);
+  text-shadow: 0 0 10px #000, 0 0 3px #000; opacity: 0; transition: opacity 0.6s; padding: 0 16px; box-sizing: border-box; width: 100%;
+}
+#toast.on { opacity: 0.92; }
+#fade { background: #000; opacity: 0; transition: opacity 0.6s; }
+#fade.on { opacity: 1; }
+
+/* ---------- note reader ---------- */
+#note { pointer-events: auto; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,0.6); }
+.paper {
+  width: min(520px, 100%); box-sizing: border-box; max-height: 86vh; overflow-y: auto;
+  background: #cdbf9e; color: #261c14; padding: clamp(22px, 5vw, 38px);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.8), inset 0 0 70px rgba(80,50,20,0.45);
+  font-family: var(--body); font-size: 1.12rem; line-height: 1.6;
+}
+.paper h2 { font-family: var(--display); font-weight: 400; letter-spacing: 0.1em; font-size: 1.15rem; margin: 0 0 4px; }
+.paper .meta { font-style: italic; opacity: 0.75; margin: 0 0 16px; font-size: 0.95rem; }
+.paper p { margin: 0 0 12px; }
+.paper .close { margin-top: 10px; font-size: 0.85rem; opacity: 0.7; font-style: italic; }
+
+/* ---------- pause ---------- */
+#pause { pointer-events: auto; display: grid; place-items: center; padding: 16px; background: rgba(4,3,5,0.82); }
+#pause .card { text-align: left; }
+#pause h2 { font-family: var(--display); font-weight: 400; letter-spacing: 0.2em; text-align: center; margin: 0 0 18px; font-size: 1.6rem; }
+.settings { display: grid; grid-template-columns: max-content 1fr; gap: 12px 16px; align-items: center; margin: 0 0 22px; }
+.settings label { color: var(--ash); font-size: 0.98rem; }
+.settings input[type="range"] { width: 100%; }
+.settings input[type="checkbox"] { justify-self: start; width: 18px; height: 18px; accent-color: var(--brass); }
+.buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.found { font-size: 0.92rem; color: var(--ash); text-align: center; margin: 0 0 16px; font-style: italic; }
+
+/* ---------- ending ---------- */
+#ending { pointer-events: auto; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,0.88); opacity: 0; transition: opacity 2.5s; }
+#ending.on { opacity: 1; }
+#ending p { max-width: 30em; text-align: center; font-size: 1.15rem; line-height: 1.6; font-style: italic; }
+
+/* ---------- touch controls ---------- */
+#touch .stick { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 1px solid rgba(216,207,188,0.35); }
+#touch .knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(216,207,188,0.28); }
+#touch .tbtns {
+  position: absolute; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  display: grid; grid-template-columns: repeat(2, 64px); gap: 12px; pointer-events: auto;
+}
+#touch .tbtns button {
+  width: 64px; height: 64px; padding: 0; border-radius: 50%; font-size: 0.72rem; letter-spacing: 0.08em;
+  background: rgba(18,16,20,0.55); color: var(--bone); border: 1px solid rgba(216,207,188,0.35);
+}
+#touch .tbtns button.on { background: rgba(176,145,90,0.55); }
+#touch .menu { position: absolute; left: calc(16px + env(safe-area-inset-left, 0px)); top: calc(14px + env(safe-area-inset-top, 0px)); pointer-events: auto; padding: 8px 14px; font-size: 0.8rem; background: rgba(18,16,20,0.55); color: var(--bone); border: 1px solid rgba(216,207,188,0.3); }
+#touch .hint {
+  position: absolute; left: 16px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 196px);
+  font-size: 0.8rem; color: var(--ash); font-style: italic; text-shadow: 0 0 6px #000; transition: opacity 1.5s;
+}
+#touch .hint.gone { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  #caption, #toast, #fade, #ending, #prompt { transition: none; }
+}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="scene" aria-label="Ravenmoor House, a 3D walkthrough"></canvas>
+
+<div id="hud" class="layer" hidden>
+  <div id="crosshair"></div>
+  <div id="prompt"></div>
+  <div id="caption"></div>
+  <div id="counter">Apparitions witnessed <b><span id="seen">0</span> / <span id="total">13</span></b></div>
+  <div id="toast"></div>
+</div>
+
+<div id="touch" class="layer" hidden>
+  <div class="stick" hidden><div class="knob"></div></div>
+  <button class="menu" id="t-menu" type="button">Menu</button>
+  <div class="tbtns">
+    <button id="t-run" type="button">Run</button>
+    <button id="t-use" type="button">Use</button>
+    <button id="t-light" type="button" class="on">Torch</button>
+    <button id="t-mute" type="button">Sound</button>
+  </div>
+  <div class="hint">Left thumb walks. Drag right side to look. Tap to use.</div>
+</div>
+
+<div id="fade" class="layer"></div>
+
+<div id="title" class="layer">
+  <div class="card">
+    <p class="est">Est. 1871 &middot; Ashgrove Lane</p>
+    <h1>Ravenmoor</h1>
+    <div class="rule">&#10022;</div>
+    <p class="epigraph">Every room remembers who has lived in it. Some rooms remember more.</p>
+    <p class="attrib">Thirteen apparitions are said to walk these halls. Find them, if you can bear to look.</p>
+    <dl class="controls desk-only">
+      <dt>W A S D</dt><dd>Walk (arrow keys work too)</dd>
+      <dt>Mouse</dt><dd>Look around</dd>
+      <dt>Shift</dt><dd>Hurry</dd>
+      <dt>E / Click</dt><dd>Open, read, use</dd>
+      <dt>F</dt><dd>Lantern torch on or off</dd>
+      <dt>Esc</dt><dd>Pause and settings</dd>
+    </dl>
+    <dl class="controls touch-only">
+      <dt>Left thumb</dt><dd>Walk</dd>
+      <dt>Right drag</dt><dd>Look around</dd>
+      <dt>Tap</dt><dd>Open, read, use</dd>
+    </dl>
+    <div class="row">
+      <label class="inline" for="quality">Detail
+        <select id="quality">
+          <option value="auto">Automatic</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </label>
+    </div>
+    <div class="loading"><i id="bar"></i></div>
+    <p class="status" id="status">Preparing the house&hellip;</p>
+    <div class="row" style="margin-top:16px">
+      <button id="enter" type="button" disabled>Enter the house</button>
+    </div>
+    <p class="fine">Headphones and a dark room are strongly advised. Contains sudden frights, but nothing gory.</p>
+  </div>
+</div>
+
+<div id="note" class="layer" hidden>
+  <div class="paper" role="dialog" aria-modal="true" aria-labelledby="note-title">
+    <h2 id="note-title"></h2>
+    <p class="meta" id="note-meta"></p>
+    <div id="note-body"></div>
+    <p class="close">Press E, Esc or tap to put it down.</p>
+  </div>
+</div>
+
+<div id="pause" class="layer" hidden>
+  <div class="card">
+    <h2>Paused</h2>
+    <p class="found" id="pause-found"></p>
+    <div class="settings">
+      <label for="s-volume">Volume</label><input id="s-volume" type="range" min="0" max="1" step="0.05" value="0.8">
+      <label for="s-bright">Brightness</label><input id="s-bright" type="range" min="0.7" max="1.8" step="0.05" value="1">
+      <label for="s-sens">Look speed</label><input id="s-sens" type="range" min="0.3" max="2.5" step="0.05" value="1">
+      <label for="s-invert">Invert look</label><input id="s-invert" type="checkbox">
+      <label for="s-quality">Detail</label>
+      <select id="s-quality">
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+    </div>
+    <div class="buttons">
+      <button id="resume" type="button">Return to the house</button>
+      <button id="restart" type="button" class="quiet">Start again</button>
+    </div>
+  </div>
+</div>
+
+<div id="ending" class="layer" hidden>
+  <div>
+    <p id="ending-text"></p>
+    <div class="buttons" style="margin-top:22px">
+      <button id="ending-stay" type="button">Keep wandering</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
