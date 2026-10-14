@@ -9,7 +9,7 @@ import { Interactions } from './core/interact.js';
 import { Director } from './core/director.js';
 import { Rooms } from './core/rooms.js';
 import { LightPool, Flashlight } from './core/lights.js';
-import { damp, nextFrame } from './core/util.js';
+import { damp, nextFrame, isTouchDevice } from './core/util.js';
 import { Sky, MOON_DIR } from './gfx/sky.js';
 import { Post } from './gfx/post.js';
 import { Flames, Dust, GroundFog, Beam, Shafts } from './gfx/effects.js';
@@ -26,21 +26,31 @@ export const QUALITY = {
 };
 
 export function autoQuality() {
-  const touch = matchMedia('(pointer: coarse)').matches;
-  if (touch) return 'low';
+  if (isTouchDevice()) return 'low';
   const cores = navigator.hardwareConcurrency || 4;
   return cores >= 8 ? 'high' : 'medium';
 }
 
 const FOG_OUT = new THREE.Color(0x0b0d12);
 const FOG_IN = new THREE.Color(0x040405);
+const FOV = 70;
+const TAN_HALF_FOV = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
 
 export class Game {
   constructor(qualityName) {
     this.q = QUALITY[qualityName] || QUALITY.medium;
+    this.touch = isTouchDevice();
     const canvas = document.getElementById('scene');
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: this.q.aa && !this.q.post, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.q.pr));
+    // phone GPUs resolve MSAA on-chip, so even the low preset keeps it there
+    const antialias = (this.q.aa || this.touch) && !this.q.post;
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias, powerPreference: 'high-performance' });
+    // Adaptive resolution: render fewer pixels when frames run slow, and on
+    // phones climb back towards the screen's sharpness when there is headroom.
+    const dpr = window.devicePixelRatio || 1;
+    const pr = Math.min(dpr, this.q.pr);
+    const max = this.touch && this.q.name === 'low' ? Math.min(dpr, 1.6) : pr;
+    this.res = { pr, min: Math.min(pr, this.touch ? 0.6 : 0.75), ceiling: max, acc: 0, n: 0, cool: 2 };
+    renderer.setPixelRatio(pr);
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     renderer.shadowMap.enabled = this.q.shadows;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -50,7 +60,7 @@ export class Game {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x000000);
     this.scene.fog = new THREE.FogExp2(FOG_OUT.clone(), 0.03);
-    this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 520);
+    this.camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 0.05, 520);
     this.scene.add(this.camera);
     this.clock = new THREE.Clock(false);
     this.state = 'loading';
@@ -68,7 +78,48 @@ export class Game {
       room: null,
       time: 0,
     };
-    window.addEventListener('resize', () => this.resize());
+    // phones report the new size late after a rotation, so check again
+    window.addEventListener('resize', () => {
+      this.resize();
+      clearTimeout(this._resizeT);
+      this._resizeT = setTimeout(() => this.resize(), 350);
+    });
+    // Mobile browsers may drop the GPU context (memory pressure, app switch).
+    // three.js rebuilds its resources when it comes back; pause meanwhile.
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      this.contextLost = true;
+      this.pause();
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      this.contextLost = false;
+      this.restoreGPU();
+    });
+  }
+
+  // Textures painted on canvases re-upload by themselves after a lost
+  // context, but anything rendered once into a target comes back blank:
+  // rebuild the reflection map and ask for fresh moon shadows.
+  restoreGPU() {
+    const ctx = this.ctx;
+    const old = ctx.env;
+    if (old) {
+      const env = makeEnvironment(this.renderer);
+      const swap = (m) => {
+        if (m && m.isMaterial && m.envMap === old) {
+          m.envMap = env;
+          m.needsUpdate = true;
+        }
+      };
+      this.scene.traverse((o) => {
+        if (Array.isArray(o.material)) o.material.forEach(swap);
+        else swap(o.material);
+      });
+      for (const m of Object.values(ctx.mat || {})) swap(m);
+      ctx.env = env;
+    }
+    if (this.moon && this.moon.castShadow) this.moon.shadow.needsUpdate = true;
+    this.resize();
   }
 
   async load(progress) {
@@ -199,7 +250,13 @@ export class Game {
   resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    this.camera.aspect = w / h;
+    const aspect = w / h;
+    // On tall portrait screens widen the vertical view so the sides are not
+    // cut to a sliver: hold the horizontal view of a 4:5 screen, up to 90°.
+    let fov = FOV;
+    if (aspect < 0.8) fov = Math.min(90, THREE.MathUtils.radToDeg(2 * Math.atan((TAN_HALF_FOV * 0.8) / aspect)));
+    this.camera.fov = fov;
+    this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
     if (this.ctx.post) this.ctx.post.setSize(w, h, this.renderer.getPixelRatio());
@@ -225,6 +282,7 @@ export class Game {
     this.state = 'paused';
     this.ctx.audio.pause(true);
     this.ctx.input.exitLock();
+    this.ctx.input.release();
     if (this.onPause) this.onPause();
   }
 
@@ -237,8 +295,10 @@ export class Game {
 
   frame() {
     const ctx = this.ctx;
-    let dt = this.clock.getDelta();
+    const raw = this.clock.getDelta();
+    let dt = raw;
     if (dt > 0.05) dt = 0.05;
+    if (!this._fixedDt) this.adaptResolution(raw);
     if (this._fixedDt) dt = this._fixedDt;
     ctx.input.update(dt);
     if (ctx.input.take('pause')) {
@@ -266,7 +326,11 @@ export class Game {
       if (input.take('interact')) ctx.hud.closeNote();
     } else if (!ctx.cutscene) {
       player.frozen = false;
-      if (input.take('interact')) ctx.interact.use();
+      if (input.take('interact')) {
+        const tap = input.takeTap();
+        if (tap) ctx.interact.useAt(this.camera, (tap.x / window.innerWidth) * 2 - 1, 1 - (tap.y / window.innerHeight) * 2);
+        else ctx.interact.use();
+      }
       if (input.take('flashlight')) {
         const on = ctx.flashlight.toggle();
         ctx.audio.click(on);
@@ -276,6 +340,7 @@ export class Game {
     if (input.take('mute')) {
       ctx.audio.setMuted(!ctx.audio.muted);
       ctx.hud.toast(ctx.audio.muted ? 'Sound off' : 'Sound on', 1.5);
+      if (this.onMute) this.onMute(ctx.audio.muted);
     }
 
     player.update(dt);
@@ -333,6 +398,36 @@ export class Game {
     if (ctx.groundFog) ctx.groundFog.update(t, this.camera.position, flash);
     ctx.audio.update(dt, { indoor: k, room, fear: ctx.director.fear });
     ctx.hud.update(dt);
+  }
+
+  // Two-second windows of frame rate decide the render scale. Drops happen
+  // below ~27 fps (so a 30 fps low-power cap is left alone); a level that
+  // struggled is never climbed back to.
+  adaptResolution(dt) {
+    const r = this.res;
+    if (this.state !== 'playing' || this.contextLost || dt > 0.25) return;
+    r.acc += dt;
+    r.n++;
+    if (r.acc < 2) return;
+    const fps = r.n / r.acc;
+    r.acc = 0;
+    r.n = 0;
+    if (r.cool > 0) {
+      r.cool--;
+      return;
+    }
+    let pr = r.pr;
+    if (fps < 27 && pr > r.min) {
+      pr = Math.max(r.min, pr * (fps < 20 ? 0.75 : 0.87));
+      r.ceiling = Math.max(r.min, r.pr * 0.95);
+    } else if (fps > 52 && pr < r.ceiling) {
+      pr = Math.min(r.ceiling, pr * 1.1);
+    }
+    if (Math.abs(pr - r.pr) < 0.01) return;
+    r.pr = pr;
+    this.renderer.setPixelRatio(pr);
+    this.resize();
+    r.cool = 1;
   }
 
   exposeDebug() {

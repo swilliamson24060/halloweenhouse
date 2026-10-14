@@ -11,6 +11,11 @@ export const damp = (a, b, lambda, dt) => lerp(a, b, 1 - Math.exp(-lambda * dt))
 export const DEG = Math.PI / 180;
 export const TAU = Math.PI * 2;
 
+// Phones and tablets: a coarse primary pointer. Touch-screen laptops keep
+// their mouse controls because their primary pointer is fine.
+export const isTouchDevice = () =>
+  matchMedia('(pointer: coarse)').matches || (navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches);
+
 export function mulberry32(seed) {
   let a = seed >>> 0;
   return function () {

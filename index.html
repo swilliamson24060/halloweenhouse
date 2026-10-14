@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Ravenmoor House</title>
 <meta name="description" content="A first-person walkthrough of a haunted Victorian house, built with Three.js.">
+<meta name="theme-color" content="#0a090b">
+<meta name="color-scheme" content="dark">
+<meta name="format-detection" content="telephone=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ravenmoor">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&display=swap">
@@ -20,32 +30,47 @@
   --blood: #7c2b26;
   --display: "IM Fell English SC", "IM Fell English", Georgia, "Times New Roman", serif;
   --body: "IM Fell English", Georgia, "Times New Roman", serif;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
   color-scheme: dark;
 }
 html, body { height: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overscroll-behavior: none; }
 body {
   margin: 0;
   background: var(--ink);
   color: var(--bone);
   font-family: var(--body);
   overflow: hidden;
+  overscroll-behavior: none;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   touch-action: none;
 }
 #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 .layer { position: fixed; inset: 0; pointer-events: none; }
 [hidden] { display: none !important; }
 
-/* ---------- title card ---------- */
-#title {
+/* Panels that may be taller than a phone held sideways: centred while they
+   fit, scrollable from the top when they do not. */
+.panel {
   pointer-events: auto;
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  background: radial-gradient(ellipse at 50% 40%, rgba(20,18,24,0.55), rgba(5,4,6,0.94) 70%);
+  display: flex;
+  box-sizing: border-box;
+  padding: max(16px, var(--safe-t)) max(16px, var(--safe-r)) max(16px, var(--safe-b)) max(16px, var(--safe-l));
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
+.panel > * { margin: auto; }
+
+/* ---------- title card ---------- */
+#title { background: radial-gradient(ellipse at 50% 40%, rgba(20,18,24,0.55), rgba(5,4,6,0.94) 70%); }
 .card {
   width: min(560px, 100%);
   box-sizing: border-box;
@@ -87,6 +112,10 @@ h1 {
 body.touch .touch-only { display: revert; }
 body.touch .controls.touch-only { display: grid; }
 body.touch .desk-only { display: none; }
+.tip { display: none; font-size: 0.9rem; font-style: italic; color: var(--brass); margin: -8px 0 18px; }
+@media (orientation: portrait) and (max-width: 600px) {
+  body.touch .rotate-tip { display: block; }
+}
 .row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 18px; margin: 0 0 18px; }
 label.inline { display: flex; align-items: center; gap: 8px; font-size: 0.95rem; color: var(--ash); }
 select, input[type="range"] { accent-color: var(--brass); }
@@ -107,17 +136,23 @@ button {
   border: 0;
   padding: 12px 30px;
   cursor: pointer;
+  touch-action: manipulation;
   transition: background 0.2s, color 0.2s, opacity 0.2s;
 }
-button:hover:not(:disabled), button:focus-visible { background: var(--brass); }
+@media (hover: hover) {
+  button:hover:not(:disabled) { background: var(--brass); }
+  button.quiet:hover { color: var(--ink); }
+}
+button:focus-visible, button:active:not(:disabled) { background: var(--brass); }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
 button:disabled { opacity: 0.45; cursor: progress; }
 button.quiet { background: transparent; color: var(--bone); border: 1px solid rgba(216,207,188,0.3); }
-button.quiet:hover { color: var(--ink); }
+button.quiet:active { color: var(--ink); }
 .loading { height: 2px; background: rgba(216,207,188,0.12); margin: 14px auto 8px; width: 70%; overflow: hidden; }
 .loading i { display: block; height: 100%; width: 0; background: var(--brass); transition: width 0.25s; }
 .status { font-size: 0.88rem; color: var(--ash); font-style: italic; min-height: 1.3em; margin: 0; }
 .fine { font-size: 0.82rem; color: var(--ash); margin: 18px 0 0; }
+.fine + .fine { margin-top: 8px; }
 
 /* ---------- HUD ---------- */
 #crosshair {
@@ -135,31 +170,41 @@ button.quiet:hover { color: var(--ink); }
   font-family: var(--display); border: 1px solid rgba(216,207,188,0.5); padding: 0 6px; margin-right: 8px; font-size: 0.85rem;
 }
 #caption {
-  position: absolute; left: 0; right: 0; top: calc(14% + env(safe-area-inset-top, 0px)); text-align: center;
+  position: absolute; left: 0; right: 0; top: calc(14% + var(--safe-t)); text-align: center;
   font-family: var(--display); font-size: clamp(1.4rem, 4vw, 2.2rem); letter-spacing: 0.22em; color: var(--bone);
   text-shadow: 0 0 18px #000, 0 0 4px #000; opacity: 0; transition: opacity 1.6s; padding: 0 16px;
 }
 #caption.on { opacity: 0.9; }
 #counter {
-  position: absolute; right: 16px; top: calc(14px + env(safe-area-inset-top, 0px));
+  position: absolute; right: calc(16px + var(--safe-r)); top: calc(14px + var(--safe-t));
   font-family: var(--display); letter-spacing: 0.14em; font-size: 0.86rem; color: var(--ash);
   text-shadow: 0 0 6px #000; text-align: right; font-variant-numeric: tabular-nums;
 }
 #counter b { color: var(--bone); font-weight: 400; font-size: 1.05rem; }
 #counter.pulse b { color: var(--brass); }
+@media (max-width: 560px) {
+  #counter .long { display: none; }
+}
 #toast {
-  position: absolute; left: 50%; bottom: calc(16% + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  position: absolute; left: 50%; bottom: calc(16% + var(--safe-b)); transform: translateX(-50%);
   max-width: min(90vw, 36em); text-align: center; font-style: italic; font-size: 1.1rem; color: var(--bone);
   text-shadow: 0 0 10px #000, 0 0 3px #000; opacity: 0; transition: opacity 0.6s; padding: 0 16px; box-sizing: border-box; width: 100%;
 }
 #toast.on { opacity: 0.92; }
+/* on touch screens keep messages clear of the thumbs */
+body.touch #toast { bottom: calc(22px + var(--safe-b)); max-width: max(240px, calc(100% - 400px)); font-size: 1rem; }
+@media (orientation: portrait) {
+  body.touch #toast { bottom: calc(206px + var(--safe-b)); max-width: 92vw; }
+}
 #fade { background: #000; opacity: 0; transition: opacity 0.6s; }
 #fade.on { opacity: 1; }
 
 /* ---------- note reader ---------- */
-#note { pointer-events: auto; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,0.6); }
+#note { pointer-events: auto; display: flex; padding: max(16px, var(--safe-t)) max(16px, var(--safe-r)) max(16px, var(--safe-b)) max(16px, var(--safe-l)); box-sizing: border-box; background: rgba(0,0,0,0.6); }
 .paper {
-  width: min(520px, 100%); box-sizing: border-box; max-height: 86vh; overflow-y: auto;
+  margin: auto;
+  width: min(520px, 100%); box-sizing: border-box; max-height: 100%; overflow-y: auto;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
   background: #cdbf9e; color: #261c14; padding: clamp(22px, 5vw, 38px);
   box-shadow: 0 20px 60px rgba(0,0,0,0.8), inset 0 0 70px rgba(80,50,20,0.45);
   font-family: var(--body); font-size: 1.12rem; line-height: 1.6;
@@ -170,42 +215,95 @@ button.quiet:hover { color: var(--ink); }
 .paper .close { margin-top: 10px; font-size: 0.85rem; opacity: 0.7; font-style: italic; }
 
 /* ---------- pause ---------- */
-#pause { pointer-events: auto; display: grid; place-items: center; padding: 16px; background: rgba(4,3,5,0.82); }
+#pause { background: rgba(4,3,5,0.82); }
 #pause .card { text-align: left; }
 #pause h2 { font-family: var(--display); font-weight: 400; letter-spacing: 0.2em; text-align: center; margin: 0 0 18px; font-size: 1.6rem; }
 .settings { display: grid; grid-template-columns: max-content 1fr; gap: 12px 16px; align-items: center; margin: 0 0 22px; }
 .settings label { color: var(--ash); font-size: 0.98rem; }
-.settings input[type="range"] { width: 100%; }
-.settings input[type="checkbox"] { justify-self: start; width: 18px; height: 18px; accent-color: var(--brass); }
+.settings input[type="range"] { width: 100%; margin: 0; }
+.settings input[type="checkbox"] { justify-self: start; width: 18px; height: 18px; margin: 0; accent-color: var(--brass); }
+.settings select { justify-self: start; }
+body.touch .settings input[type="range"] { height: 30px; }
+body.touch .settings input[type="checkbox"] { width: 24px; height: 24px; }
 .buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .found { font-size: 0.92rem; color: var(--ash); text-align: center; margin: 0 0 16px; font-style: italic; }
 
 /* ---------- ending ---------- */
-#ending { pointer-events: auto; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,0.88); opacity: 0; transition: opacity 2.5s; }
+#ending { background: rgba(0,0,0,0.88); opacity: 0; transition: opacity 2.5s; }
 #ending.on { opacity: 1; }
 #ending p { max-width: 30em; text-align: center; font-size: 1.15rem; line-height: 1.6; font-style: italic; }
 
 /* ---------- touch controls ---------- */
-#touch .stick { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 1px solid rgba(216,207,188,0.35); }
+#touch button {
+  pointer-events: auto; touch-action: none; padding: 0; font-size: 0.74rem; letter-spacing: 0.08em;
+  color: var(--bone); background: rgba(18,16,20,0.5); border: 1px solid rgba(216,207,188,0.35);
+}
+#touch button.on { background: rgba(176,145,90,0.5); }
+#touch button { transition: transform 0.12s, background 0.12s; }
+#touch button.pressed { transform: scale(0.92); background: rgba(176,145,90,0.7); }
+/* the floating stick appears wherever a thumb lands on the left side */
+#touch .stick {
+  position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%;
+  border: 1px solid rgba(216,207,188,0.35);
+}
+#touch .stick.idle { opacity: 0; transition: opacity 0.3s; }
 #touch .knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(216,207,188,0.28); }
-#touch .tbtns {
-  position: absolute; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  display: grid; grid-template-columns: repeat(2, 64px); gap: 12px; pointer-events: auto;
+/* hold to walk forward; the same thumb can slide to look around */
+#touch #t-walk {
+  position: absolute; left: calc(18px + var(--safe-l)); bottom: calc(20px + var(--safe-b));
+  width: 86px; height: 86px; border-radius: 50%; font-size: 0.86rem;
 }
-#touch .tbtns button {
-  width: 64px; height: 64px; padding: 0; border-radius: 50%; font-size: 0.72rem; letter-spacing: 0.08em;
-  background: rgba(18,16,20,0.55); color: var(--bone); border: 1px solid rgba(216,207,188,0.35);
+#touch #t-walk::before {
+  content: ""; display: block; width: 9px; height: 9px; margin: 2px auto 5px;
+  border: solid currentColor; border-width: 1.5px 0 0 1.5px; transform: rotate(45deg); opacity: 0.85;
 }
-#touch .tbtns button.on { background: rgba(176,145,90,0.55); }
-#touch .menu { position: absolute; left: calc(16px + env(safe-area-inset-left, 0px)); top: calc(14px + env(safe-area-inset-top, 0px)); pointer-events: auto; padding: 8px 14px; font-size: 0.8rem; background: rgba(18,16,20,0.55); color: var(--bone); border: 1px solid rgba(216,207,188,0.3); }
-#touch .hint {
-  position: absolute; left: 16px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 196px);
-  font-size: 0.8rem; color: var(--ash); font-style: italic; text-shadow: 0 0 6px #000; transition: opacity 1.5s;
+#touch #t-walk.on { border-color: var(--brass); background: rgba(176,145,90,0.55); }
+#touch .tbar { position: absolute; left: calc(14px + var(--safe-l)); top: calc(12px + var(--safe-t)); display: flex; gap: 8px; }
+#touch .tbar button { min-width: 64px; height: 38px; padding: 0 12px; font-size: 0.78rem; }
+/* thumb arc in the bottom-right corner: Use under the thumb, Run and Torch beside it */
+#touch .tbtns { position: absolute; right: calc(14px + var(--safe-r)); bottom: calc(16px + var(--safe-b)); width: 172px; height: 172px; }
+#touch .tbtns button { position: absolute; border-radius: 50%; }
+#touch #t-use { right: 0; bottom: 0; width: 82px; height: 82px; font-size: 0.86rem; }
+#touch #t-run { right: 96px; bottom: 8px; width: 62px; height: 62px; }
+#touch #t-light { right: 10px; bottom: 96px; width: 62px; height: 62px; }
+#touch #t-use.ready {
+  border-color: var(--brass); background: rgba(176,145,90,0.4); box-shadow: 0 0 18px rgba(176,145,90,0.5);
+  animation: beckon 1.8s ease-in-out infinite;
 }
-#touch .hint.gone { opacity: 0; }
+@keyframes beckon { 50% { box-shadow: 0 0 5px rgba(176,145,90,0.2); } }
+
+/* ---------- phones held sideways: shorter, two-column panels ---------- */
+@media (orientation: landscape) and (max-height: 560px) {
+  #title .card {
+    width: min(820px, 100%);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 0 32px;
+    padding: 20px 26px;
+    outline-offset: 4px;
+  }
+  .est { margin-bottom: 6px; }
+  h1 { font-size: clamp(2.2rem, 6vw, 3.3rem); }
+  .rule { margin: 12px auto; }
+  .epigraph { font-size: 1rem; }
+  .attrib { margin: 0; font-size: 0.86rem; }
+  .controls { margin-bottom: 14px; gap: 4px 14px; font-size: 0.9rem; }
+  .row { margin-bottom: 10px; }
+  .loading { margin: 6px auto; }
+  .fine { margin-top: 10px; font-size: 0.76rem; }
+  #title .row:last-of-type { margin-top: 10px !important; }
+  #enter { padding: 10px 26px; }
+  #pause .card { width: min(720px, 100%); padding: 18px 24px; }
+  #pause h2 { margin-bottom: 6px; font-size: 1.3rem; }
+  .found { margin-bottom: 12px; }
+  .settings { grid-template-columns: max-content 1fr max-content 1fr; gap: 8px 16px; margin-bottom: 14px; }
+  .paper { font-size: 1.02rem; padding: 18px 24px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   #caption, #toast, #fade, #ending, #prompt { transition: none; }
+  #touch #t-use.ready { animation: none; }
 }
 </style>
 <script type="importmap">
@@ -224,60 +322,69 @@ button.quiet:hover { color: var(--ink); }
   <div id="crosshair"></div>
   <div id="prompt"></div>
   <div id="caption"></div>
-  <div id="counter">Apparitions witnessed <b><span id="seen">0</span> / <span id="total">13</span></b></div>
+  <div id="counter">Apparitions<span class="long"> witnessed</span> <b><span id="seen">0</span> / <span id="total">13</span></b></div>
   <div id="toast"></div>
 </div>
 
 <div id="touch" class="layer" hidden>
-  <div class="stick" hidden><div class="knob"></div></div>
-  <button class="menu" id="t-menu" type="button">Menu</button>
-  <div class="tbtns">
-    <button id="t-run" type="button">Run</button>
-    <button id="t-use" type="button">Use</button>
-    <button id="t-light" type="button" class="on">Torch</button>
-    <button id="t-mute" type="button">Sound</button>
+  <div class="stick idle"><div class="knob"></div></div>
+  <button id="t-walk" type="button" aria-pressed="false">Walk</button>
+  <div class="tbar">
+    <button id="t-menu" type="button">Menu</button>
+    <button id="t-mute" type="button" class="on" aria-pressed="true">Sound</button>
   </div>
-  <div class="hint">Left thumb walks. Drag right side to look. Tap to use.</div>
+  <div class="tbtns">
+    <button id="t-light" type="button" class="on" aria-pressed="true">Torch</button>
+    <button id="t-run" type="button" aria-pressed="false">Run</button>
+    <button id="t-use" type="button">Use</button>
+  </div>
 </div>
 
 <div id="fade" class="layer"></div>
 
-<div id="title" class="layer">
+<div id="title" class="layer panel">
   <div class="card">
-    <p class="est">Est. 1871 &middot; Ashgrove Lane</p>
-    <h1>Ravenmoor</h1>
-    <div class="rule">&#10022;</div>
-    <p class="epigraph">Every room remembers who has lived in it. Some rooms remember more.</p>
-    <p class="attrib">Thirteen apparitions are said to walk these halls. Find them, if you can bear to look.</p>
-    <dl class="controls desk-only">
-      <dt>W A S D</dt><dd>Walk (arrow keys work too)</dd>
-      <dt>Mouse</dt><dd>Look around</dd>
-      <dt>Shift</dt><dd>Hurry</dd>
-      <dt>E / Click</dt><dd>Open, read, use</dd>
-      <dt>F</dt><dd>Lantern torch on or off</dd>
-      <dt>Esc</dt><dd>Pause and settings</dd>
-    </dl>
-    <dl class="controls touch-only">
-      <dt>Left thumb</dt><dd>Walk</dd>
-      <dt>Right drag</dt><dd>Look around</dd>
-      <dt>Tap</dt><dd>Open, read, use</dd>
-    </dl>
-    <div class="row">
-      <label class="inline" for="quality">Detail
-        <select id="quality">
-          <option value="auto">Automatic</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
-      </label>
+    <div class="intro">
+      <p class="est">Est. 1871 &middot; Ashgrove Lane</p>
+      <h1>Ravenmoor</h1>
+      <div class="rule">&#10022;</div>
+      <p class="epigraph">Every room remembers who has lived in it. Some rooms remember more.</p>
+      <p class="attrib">Thirteen apparitions are said to walk these halls. Find them, if you can bear to look.</p>
     </div>
-    <div class="loading"><i id="bar"></i></div>
-    <p class="status" id="status">Preparing the house&hellip;</p>
-    <div class="row" style="margin-top:16px">
-      <button id="enter" type="button" disabled>Enter the house</button>
+    <div class="begin">
+      <dl class="controls desk-only">
+        <dt>W A S D</dt><dd>Walk (arrow keys work too)</dd>
+        <dt>Mouse</dt><dd>Look around</dd>
+        <dt>Shift</dt><dd>Hurry</dd>
+        <dt>E / Click</dt><dd>Open, read, use</dd>
+        <dt>F</dt><dd>Lantern torch on or off</dd>
+        <dt>Esc</dt><dd>Pause and settings</dd>
+      </dl>
+      <dl class="controls touch-only">
+        <dt>Walk</dt><dd>Hold to walk, slide to steer</dd>
+        <dt>Left side</dt><dd>Slide a thumb to move any way</dd>
+        <dt>Right side</dt><dd>Drag to look around</dd>
+        <dt>Tap</dt><dd>Open, read and use things</dd>
+      </dl>
+      <p class="tip rotate-tip">Turn your phone sideways for the widest view.</p>
+      <div class="row">
+        <label class="inline" for="quality">Detail
+          <select id="quality">
+            <option value="auto">Automatic</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </label>
+      </div>
+      <div class="loading"><i id="bar"></i></div>
+      <p class="status" id="status">Preparing the house&hellip;</p>
+      <div class="row" style="margin-top:16px">
+        <button id="enter" type="button" disabled>Enter the house</button>
+      </div>
+      <p class="fine">Headphones and a dark room are strongly advised. Contains sudden frights, but nothing gory.</p>
+      <p class="fine" id="ios-tip" hidden>To play full screen, tap Share, then Add to Home Screen.</p>
     </div>
-    <p class="fine">Headphones and a dark room are strongly advised. Contains sudden frights, but nothing gory.</p>
   </div>
 </div>
 
@@ -286,11 +393,11 @@ button.quiet:hover { color: var(--ink); }
     <h2 id="note-title"></h2>
     <p class="meta" id="note-meta"></p>
     <div id="note-body"></div>
-    <p class="close">Press E, Esc or tap to put it down.</p>
+    <p class="close"><span class="desk-only">Press E, click or press Esc to put it down.</span><span class="touch-only">Tap anywhere to put it down.</span></p>
   </div>
 </div>
 
-<div id="pause" class="layer" hidden>
+<div id="pause" class="layer panel" hidden>
   <div class="card">
     <h2>Paused</h2>
     <p class="found" id="pause-found"></p>
@@ -305,6 +412,8 @@ button.quiet:hover { color: var(--ink); }
         <option value="medium">Medium</option>
         <option value="high">High</option>
       </select>
+      <label for="s-fullscreen" data-needs="fullscreen">Full screen</label><input id="s-fullscreen" type="checkbox" data-needs="fullscreen">
+      <label for="s-vibrate" data-needs="vibrate">Vibration</label><input id="s-vibrate" type="checkbox" data-needs="vibrate">
     </div>
     <div class="buttons">
       <button id="resume" type="button">Return to the house</button>
@@ -313,7 +422,7 @@ button.quiet:hover { color: var(--ink); }
   </div>
 </div>
 
-<div id="ending" class="layer" hidden>
+<div id="ending" class="layer panel" hidden>
   <div>
     <p id="ending-text"></p>
     <div class="buttons" style="margin-top:22px">

@@ -21,6 +21,7 @@ export class Hud {
       noteBody: $('note-body'),
       ending: $('ending'),
       endingText: $('ending-text'),
+      use: $('t-use'),
     };
     this.captionT = 0;
     this.toastT = 0;
@@ -28,7 +29,13 @@ export class Hud {
     this.noteOpen = false;
     this._noteResolve = null;
     this.touch = false;
-    this.el.note.addEventListener('pointerdown', () => this.closeNote());
+    // close on a click that started on the note (not the press that opened
+    // it), so a long note can still be scrolled by touch
+    this.el.note.addEventListener('pointerdown', () => (this._notePress = true));
+    this.el.note.addEventListener('click', () => {
+      if (this._notePress) this.closeNote();
+      this._notePress = false;
+    });
   }
 
   show(on) {
@@ -39,6 +46,8 @@ export class Hud {
     if (text === this.lastPrompt) return;
     this.lastPrompt = text;
     const p = this.el.prompt;
+    // the on-screen Use button lights up while something can be used
+    if (this.el.use) this.el.use.classList.toggle('ready', !!text);
     if (text) {
       p.innerHTML = this.touch ? '' : '<kbd>E</kbd>';
       p.appendChild(document.createTextNode(text));
@@ -81,6 +90,8 @@ export class Hud {
       this.el.noteBody.appendChild(p);
     }
     this.el.note.hidden = false;
+    this.el.note.querySelector('.paper').scrollTop = 0;
+    this._notePress = false;
     this.noteOpen = true;
     this._noteOpenedAt = performance.now();
     return new Promise((res) => (this._noteResolve = res));

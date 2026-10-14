@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { mulberry32, clamp } from '../core/util.js';
 
 // Every sound is synthesised with the Web Audio API: no audio files.
-// Positional sounds go through HRTF panners driven by the camera listener.
+// Positional sounds go through HRTF panners driven by the camera listener
+// (cheaper equal-power panning on the low detail preset).
 
 const MIDI = (n) => 440 * Math.pow(2, (n - 69) / 12);
 // An original lullaby for the music box (A minor, lilting).
@@ -23,6 +24,8 @@ export class AudioEngine {
     this.muted = false;
     this.volume = 0.8;
     this.started = false;
+    this.haptics = false; // phone vibration on the biggest frights
+    this.panning = ctx.quality && ctx.quality.name === 'low' ? 'equalpower' : 'HRTF';
     this.gcList = [];
     this.indoor = 0;
     this.fear = 0;
@@ -173,7 +176,7 @@ export class AudioEngine {
     let tail = input;
     if (pos) {
       const p = ac.createPanner();
-      p.panningModel = 'HRTF';
+      p.panningModel = this.panning;
       p.distanceModel = 'inverse';
       p.refDistance = ref;
       p.rolloffFactor = roll;
@@ -236,6 +239,13 @@ export class AudioEngine {
 
   // -------------------------------------------------------------- control
   start() {
+    // On iPhone, play through the ring/silent switch like a video would;
+    // the in-game Sound button still mutes.
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'playback';
+    } catch (e) {
+      /* not supported */
+    }
     if (this.started) {
       this.ac.resume();
       return;
@@ -263,6 +273,16 @@ export class AudioEngine {
     if (!this.started) return;
     if (p) this.ac.suspend();
     else this.ac.resume();
+  }
+
+  // Vibration where the browser supports it (Android); silently nothing elsewhere.
+  buzz(pattern) {
+    if (!this.haptics || !navigator.vibrate) return;
+    try {
+      navigator.vibrate(pattern);
+    } catch (e) {
+      /* blocked until the page has been tapped */
+    }
   }
 
   _ambience() {
@@ -641,6 +661,7 @@ export class AudioEngine {
       return;
     }
     if (type === 'low') {
+      setTimeout(() => this.buzz(150), 1500);
       const o = this.out(null, { wet: 1, dur: 4, bus: this.music });
       const n = this.src(this.white, t, 1.8);
       const hp = this.filt('bandpass', 300, 1.2);
@@ -660,6 +681,7 @@ export class AudioEngine {
       return;
     }
     // jump scare: dissonant string screech + boom
+    this.buzz([40, 30, 120]);
     const o = this.out(null, { wet: 0.7, dur: 3, bus: this.music });
     for (const f of [1245, 1318, 1397, 1480, 1567]) {
       const s = this.osc('sawtooth', f, t, 1.6);
@@ -685,6 +707,7 @@ export class AudioEngine {
 
   heartbeat(gain = 0.5) {
     if (!this.started) return;
+    if (gain > 0.55) this.buzz([14, 226, 10]);
     const t = this.now;
     const o = this.out(null, { wet: 0.1, dur: 0.6, bus: this.music });
     for (const [dt, f, a] of [

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
 // Look-at interaction: the item nearest the centre of the view, within reach
-// and line of sight, gets a prompt; E / click / tap uses it.
+// and line of sight, gets a prompt; E / click / tap uses it. A tap on the
+// screen uses the item under the finger instead.
 export class Interactions {
   constructor(ctx) {
     this.ctx = ctx;
@@ -9,6 +10,7 @@ export class Interactions {
     this.current = null;
     this._cam = new THREE.Vector3();
     this._fwd = new THREE.Vector3();
+    this._ray = new THREE.Vector3();
     this._p = new THREE.Vector3();
     this._d = new THREE.Vector3();
   }
@@ -41,9 +43,9 @@ export class Interactions {
     return out.copy(it.pos);
   }
 
-  update(camera) {
-    const cam = camera.getWorldPosition(this._cam);
-    const fwd = camera.getWorldDirection(this._fwd);
+  // Best usable item along the ray from cam in direction dir; slack widens
+  // the aim tolerance (fingers are less precise than a crosshair).
+  _find(cam, dir, slack = 0) {
     let best = null;
     let bestScore = Infinity;
     for (const it of this.items) {
@@ -53,10 +55,10 @@ export class Interactions {
       const d = this._d.subVectors(p, cam);
       const dist = d.length();
       if (dist > it.range + it.radius) continue;
-      const t = d.dot(fwd);
+      const t = d.dot(dir);
       if (t < 0.05) continue;
       const perp = Math.sqrt(Math.max(0, dist * dist - t * t));
-      const allowed = it.radius + 0.04 + dist * 0.06;
+      const allowed = it.radius + 0.04 + slack + dist * (0.06 + slack);
       if (perp > allowed) continue;
       if (it.los) {
         const back = Math.min(it.radius * 0.9, dist * 0.5);
@@ -71,8 +73,13 @@ export class Interactions {
         best = it;
       }
     }
-    this.current = best;
     return best;
+  }
+
+  update(camera) {
+    const cam = camera.getWorldPosition(this._cam);
+    this.current = this._find(cam, camera.getWorldDirection(this._fwd));
+    return this.current;
   }
 
   promptText() {
@@ -83,5 +90,14 @@ export class Interactions {
 
   use() {
     if (this.current && this.current.onUse) this.current.onUse(this.current);
+  }
+
+  // Use the item under a screen point (normalised device coordinates),
+  // falling back to the one in the centre of the view.
+  useAt(camera, nx, ny) {
+    const cam = camera.getWorldPosition(this._cam);
+    const dir = this._ray.set(nx, ny, 0.5).unproject(camera).sub(cam).normalize();
+    const it = this._find(cam, dir, 0.06) || this.current;
+    if (it && it.onUse) it.onUse(it);
   }
 }

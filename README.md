@@ -14,7 +14,7 @@ Then open http://localhost:8000.
 
 ## Put it online
 
-Upload the whole folder (`index.html` and `js/`) to any static host: GitHub Pages, Netlify, Cloudflare Pages, or your own server. Three.js and the fonts load from public CDNs, so visitors need an internet connection.
+Upload the whole folder (`index.html`, `manifest.webmanifest`, `icons/` and `js/`) to any static host: GitHub Pages, Netlify, Cloudflare Pages, or your own server. Three.js and the fonts load from public CDNs, so visitors need an internet connection. Serve it over HTTPS: phones only allow full screen, screen wake lock and vibration on secure pages.
 
 ## Controls
 
@@ -22,7 +22,18 @@ Upload the whole folder (`index.html` and `js/`) to any static host: GitHub Page
 - Mouse: look (click the page to capture the mouse).
 - E or click: open doors, read notes, use things.
 - F: torch on or off. M: sound on or off. Esc: pause and settings.
-- Phones and tablets get an on-screen stick and buttons. Gamepads work too.
+- Gamepads work too.
+
+## Phones and tablets
+
+- Walk (bottom left): hold it to walk forward. Keep holding while you drag to look with the other thumb, or slide the same thumb to steer; pressing it against the side of the screen keeps turning that way.
+- Left side: slide a thumb anywhere else on the left to move in any direction (a stick appears under it).
+- Right side: drag to look. Tap anything (a door, a note) to use it, or press Use, which lights up when something is in reach.
+- Run and Torch sit beside Use (Run with Walk held runs); Menu and Sound are at the top left.
+- Phones start on the Low detail level. The picture sharpens itself when the phone has power to spare and softens when frames slow down (desktop browsers only soften).
+- Android and iPad switch to full screen when you enter the house. iPhone Safari cannot do that for web pages, so the title card suggests Share, then Add to Home Screen, which opens the house full screen from its own icon.
+- Sound plays even with an iPhone's silent switch on (the in-game Sound button still mutes it). The house pauses when you switch apps or lock the phone, and keeps the screen awake while you play.
+- Android phones vibrate on the biggest frights; turn this off under Vibration in the menu.
 
 ## Where things live
 
