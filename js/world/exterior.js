@@ -810,11 +810,18 @@ function bulkhead(ctx) {
   // pit walls
   B.boxMM({ all: 'concrete' }, 7.2, -2.0, -1.62, 10.2, 0.22, -1.45);
   B.boxMM({ all: 'concrete' }, 7.2, -2.0, 0.65, 10.2, 0.22, 0.82);
-  ctx.col.addBox(7.2, -2.5, -1.62, 10.2, 1.2, -1.45);
-  ctx.col.addBox(7.2, -2.5, 0.65, 10.2, 1.2, 0.82);
+  // the colliders stand a metre above the concrete to stop you stepping
+  // into the open pit from the side; being invisible up there, they must
+  // not hide the doors from view (or the doors can never be opened)
+  ctx.col.addBox(7.2, -2.5, -1.62, 10.2, 1.2, -1.45).see = true;
+  ctx.col.addBox(7.2, -2.5, 0.65, 10.2, 1.2, 0.82).see = true;
   // steps down into the cellar
   stairs(ctx, B, { x: 7.45, z: -0.4, dir: [1, 0], width: 2.08, run: 2.65, y0: -2.0, y1: 0.0, steps: 11, rail: null, tread: 'concrete', riser: 'concrete', side: 'concrete', stringers: false, tag: 'stone' });
   ctx.col.addFloor(6.85, 7.45, -1.45, 0.65, -2.0, 'stone');
+  // lip between the apron and the top step: with no ground under it (the
+  // lawn is cut away here) the walker would refuse to step down
+  B.boxMM({ py: 'concrete', all: 'concrete', ny: null }, 10.08, -0.1, -1.45, 10.2, 0.0, 0.65);
+  ctx.col.addFloor(10.08, 10.22, -1.45, 0.65, 0.0, 'stone');
   // sloped door frame
   const top = 1.0;
   const bot = 0.3;
@@ -861,12 +868,21 @@ function bulkhead(ctx) {
     leaves.push({ hinge, sign, angle: 0, target: 0 });
   }
   void slope;
-  const blocker = ctx.col.addBox(7.15, -2.5, -1.45, 10.3, 1.3, 0.65);
+  // The shut doors are a sloping lid, from y 1.0 by the wall down to 0.3 at
+  // the garden end. This keeps you off them from the garden and stops you on
+  // the steps where they would meet your head, so you can climb up from the
+  // cellar and push them open. See-through, so the doors stay usable.
+  const blocker = ctx.col.addBox(8.65, 0.3, -1.45, 10.3, 1.3, 0.65);
+  blocker.see = true;
+  // dark and cellar-like until the doors are open to the sky
+  const steps = ctx.rooms.get('bulkhead');
+  steps.outdoor = false;
   const BK = {
     open: false,
     openDoors() {
       if (BK.open) return;
       BK.open = true;
+      steps.outdoor = true;
       leaves.forEach((l, i) => {
         l.target = -l.sign * 2.05;
         l.delay = i * 0.5;
@@ -880,7 +896,7 @@ function bulkhead(ctx) {
     pos: V(8.7, 0.7, -0.4),
     radius: 0.9,
     range: 2.4,
-    prompt: 'Haul open the cellar doors',
+    prompt: () => (ctx.player.pos.y < -0.3 ? 'Push open the cellar doors' : 'Haul open the cellar doors'),
     enabled: () => !BK.open,
     onUse: () => BK.openDoors(),
   });
