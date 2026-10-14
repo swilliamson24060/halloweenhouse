@@ -206,6 +206,47 @@ export class Swing {
   }
 }
 
+// A painted portrait whose own eyes turn to follow the viewer: inside each
+// eye the painting is sampled a little off toward wherever the viewer
+// stands, so the irises slide across while the lids and face stay put.
+// eyes: [[across, down], ...] as fractions of the painting.
+export class PaintedEyes {
+  constructor(ctx, parent, material, eyes, { reach = [0.0065, 0.0025], size = [0.027, 0.0085] } = {}) {
+    this.ctx = ctx;
+    this.parent = parent;
+    this.reach = reach;
+    this.look = { value: new THREE.Vector2() };
+    const at = eyes.map(([u, v]) => new THREE.Vector2(u, 1 - v));
+    material.customProgramCacheKey = () => 'painted-eyes';
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uLook = this.look;
+      shader.uniforms.uEye0 = { value: at[0] };
+      shader.uniforms.uEye1 = { value: at[1] };
+      shader.uniforms.uEyeSize = { value: new THREE.Vector2(...size) };
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform vec2 uLook;\nuniform vec2 uEye0;\nuniform vec2 uEye1;\nuniform vec2 uEyeSize;')
+        .replace(
+          '#include <map_fragment>',
+          `#ifdef USE_MAP
+            vec2 eyeUv = vMapUv;
+            eyeUv -= uLook * (1.0 - smoothstep(0.6, 1.0, length((vMapUv - uEye0) / uEyeSize)));
+            eyeUv -= uLook * (1.0 - smoothstep(0.6, 1.0, length((vMapUv - uEye1) / uEyeSize)));
+            diffuseColor *= texture2D(map, eyeUv);
+          #endif`
+        );
+    };
+    material.needsUpdate = true;
+    this._v = new THREE.Vector3();
+    ctx.updaters.push(() => this.update());
+  }
+
+  update() {
+    const local = this.parent.worldToLocal(this._v.copy(this.ctx.camera.position));
+    const d = local.length() || 1;
+    this.look.value.set((local.x / d) * this.reach[0], (local.y / d) * this.reach[1]);
+  }
+}
+
 // Eyes in a painting that follow the viewer.
 export class FollowEyes {
   constructor(ctx, parent, positions, { r = 0.012, spread = 0.006 } = {}) {

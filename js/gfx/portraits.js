@@ -1349,13 +1349,17 @@ function inscription(g, lines, scratched, rng) {
   }
 }
 
-function scratchEyes(g, P, rng) {
-  // the sitter's eyes were scraped out by somebody, long ago
+// Where the drawn sitter's eyes are, on the 512 x 672 canvas.
+function drawnEyes(P) {
   const h = P.head;
   const R = headWidth(h, P.face);
-  for (const sd of [-1, 1]) {
-    const ex = h.cx + sd * 0.42 * R;
-    const ey = h.cy;
+  return [-1, 1].map((sd) => [h.cx + sd * 0.42 * R, h.cy]);
+}
+
+// The sitter's eyes, scraped out by somebody long ago (the eyes that follow
+// you are set into the holes).
+function scratchEyes(g, eyes, rng) {
+  for (const [ex, ey] of eyes) {
     for (let i = 0; i < 18; i++) {
       const a = rng() * Math.PI * 2;
       const r0 = 9 + rng() * 4;
@@ -1367,9 +1371,6 @@ function scratchEyes(g, P, rng) {
     }
     softEllipse(g, ex, ey, 12, 10, 'rgba(0,0,0,0.85)', 6);
   }
-  // and a second, darker shape standing just behind her
-  softEllipse(g, h.cx + 120, h.cy + 40, 70, 180, 'rgba(10,12,10,0.35)', 50);
-  softEllipse(g, h.cx + 112, h.cy - 60, 40, 50, 'rgba(10,12,10,0.35)', 30);
 }
 
 export function paintPortrait(key) {
@@ -1380,7 +1381,13 @@ export function paintPortrait(key) {
   const rng = seeded(P.seed * 7919);
   background(g, P.bg, seeded(P.seed));
   paintSitter(g, P, rng, empty);
-  if (P.scratched) scratchEyes(g, P, rng);
+  if (P.scratched) {
+    scratchEyes(g, drawnEyes(P), rng);
+    // and a second, darker shape standing just behind her
+    const h = P.head;
+    softEllipse(g, h.cx + 120, h.cy + 40, 70, 180, 'rgba(10,12,10,0.35)', 50);
+    softEllipse(g, h.cx + 112, h.cy - 60, 40, 50, 'rgba(10,12,10,0.35)', 30);
+  }
   inscription(g, P.title, P.scratched, rng);
   agePainting(g, W, H, seeded(P.seed + 5), { cracks: 80 });
   return c;
@@ -1393,6 +1400,10 @@ export function buildPortraits(renderer) {
     const t = new THREE.CanvasTexture(paintPortrait(key));
     t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = aniso;
+    // where a scratched sitter's eyes are (fractions across and down), for
+    // the eyes that follow you
+    const P = PORTRAITS[key];
+    if (P && P.scratched) t.userData.eyes = drawnEyes(P).map(([x, y]) => [x / W, y / H]);
     out[key] = t;
   }
   return out;
@@ -1406,8 +1417,15 @@ const ART = {
   constance: 'art/portraits/constance.jpg',
   clara: 'art/portraits/clara.jpg',
   thomas: 'art/portraits/thomas.jpg',
+  ezra: 'art/portraits/ezra.jpg',
+  agnes: 'art/portraits/agnes.jpg',
+  eleanor: 'art/portraits/eleanor.jpg',
+  lucy: 'art/portraits/lucy.jpg',
   josiah: 'art/portraits/josiah.jpg',
   josiah_empty: 'art/portraits/josiah_empty.jpg',
+  // her eyes (fractions across and down the painting) follow you round the
+  // parlour: see PaintedEyes
+  henrietta: { src: 'art/portraits/henrietta.jpg', eyes: [[0.449, 0.279], [0.561, 0.277]] },
 };
 
 export function fetchPortraitArt(timeout = 8000) {
@@ -1415,15 +1433,15 @@ export function fetchPortraitArt(timeout = 8000) {
   // the load event, not img.decode(): decode() waits for the page to be
   // drawn, so it never settles while the tab is in the background
   const jobs = Object.entries(ART).map(
-    ([key, src]) =>
+    ([key, entry]) =>
       new Promise((done) => {
         const img = new Image();
         img.onload = () => {
-          got.push([key, img]);
+          got.push([key, img, typeof entry === 'string' ? {} : entry]);
           done();
         };
         img.onerror = done;
-        img.src = src;
+        img.src = typeof entry === 'string' ? entry : entry.src;
       })
   );
   return Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, timeout))]).then(() => got.slice());
@@ -1431,7 +1449,7 @@ export function fetchPortraitArt(timeout = 8000) {
 
 // Fill the frame with the painting (cropping whatever does not fit its
 // proportions) and letter the sitter's name across the foot, as on the rest.
-function finishArt(img, key) {
+function finishArt(img, key, entry) {
   const P = PORTRAITS[key.replace(/_empty$/, '')];
   const ch = Math.min(1024, img.naturalHeight);
   const cw = Math.round((ch * W) / H);
@@ -1447,10 +1465,13 @@ function finishArt(img, key) {
 }
 
 export function applyPortraitArt(textures, art) {
-  for (const [key, img] of art) {
+  for (const [key, img, entry] of art) {
     const t = textures[key];
     if (!t) continue;
-    t.image = finishArt(img, key);
+    t.image = finishArt(img, key, entry);
+    // painted eyes stay whole and are made to move, rather than scratched
+    // out with eyes set into the holes
+    if (entry.eyes) t.userData = { eyes: entry.eyes, painted: true };
     t.needsUpdate = true;
   }
 }

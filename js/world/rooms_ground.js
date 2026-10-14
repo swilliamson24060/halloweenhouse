@@ -5,7 +5,7 @@ import * as P from './props.js';
 import { Ghost } from '../creatures/ghost.js';
 import { DINERS } from '../creatures/cast.js';
 import { Snake } from '../creatures/snakes.js';
-import { Swing, Rocker, FollowEyes } from './dynamic.js';
+import { Swing, Rocker, FollowEyes, PaintedEyes } from './dynamic.js';
 import { makeFire } from '../gfx/effects.js';
 import { cobweb, webQuad } from './build.js';
 
@@ -318,14 +318,18 @@ function parlor(ctx) {
   // fireplace on the right wall
   const fp = P.at(B, 6.85, GF, 1.9, -Math.PI / 2, () => P.fireplace(B, { w: 1.6, h: 1.3, breast: 'wp_parlor', breastH: GC - GF }));
   ctx.col.addBox(6.25, GF, 0.85, 6.9, GC, 2.95);
-  // portrait over the mantel whose eyes follow you
+  // portrait over the mantel whose eyes follow you: a painting's own eyes
+  // turn to you; the drawn one's are scratched out, with eyes in the holes
   const pf = new THREE.Group();
   pf.position.set(6.85 - 0.46, GF + 2.35, 1.9);
   pf.rotation.y = -Math.PI / 2;
   ctx.scene.add(pf);
-  P.at(B, 6.85 - 0.45, GF + 2.35, 1.9, -Math.PI / 2, () => P.painting(B, 0.62, 0.82, 'portrait_henrietta', { fw: 0.09 }));
+  const [pw, ph] = [0.62, 0.82];
+  P.at(B, 6.85 - 0.45, GF + 2.35, 1.9, -Math.PI / 2, () => P.painting(B, pw, ph, 'portrait_henrietta', { fw: 0.09 }));
   pf.updateMatrixWorld();
-  new FollowEyes(ctx, pf, [V(-0.034, 0.082, 0.016), V(0.034, 0.082, 0.016)], { r: 0.013, spread: 0.006 });
+  const art = ctx.tex.portraits.henrietta.userData;
+  if (art.painted) new PaintedEyes(ctx, pf, ctx.mat.portrait_henrietta, art.eyes);
+  else new FollowEyes(ctx, pf, art.eyes.map(([u, v]) => V((u - 0.5) * pw, (0.5 - v) * ph, 0.016)), { r: 0.013, spread: 0.006 });
   // mantel ornaments
   const mantel = P.at(B, 6.85 - 0.55, GF + fp.mantelY, 1.9, -Math.PI / 2, () => {
     B.push(mat(-0.3, 0, 0));
