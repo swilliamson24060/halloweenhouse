@@ -1403,20 +1403,29 @@ export function buildPortraits(renderer) {
 // by the deadline is hung, and anything missing or late leaves the drawn
 // portrait where it is (a texture is never resized once it is on the GPU).
 const ART = {
+  constance: 'art/portraits/constance.jpg',
+  clara: 'art/portraits/clara.jpg',
+  thomas: 'art/portraits/thomas.jpg',
   josiah: 'art/portraits/josiah.jpg',
   josiah_empty: 'art/portraits/josiah_empty.jpg',
 };
 
 export function fetchPortraitArt(timeout = 8000) {
   const got = [];
-  const jobs = Object.entries(ART).map(([key, src]) => {
-    const img = new Image();
-    img.src = src;
-    return img.decode().then(
-      () => got.push([key, img]),
-      () => {}
-    );
-  });
+  // the load event, not img.decode(): decode() waits for the page to be
+  // drawn, so it never settles while the tab is in the background
+  const jobs = Object.entries(ART).map(
+    ([key, src]) =>
+      new Promise((done) => {
+        const img = new Image();
+        img.onload = () => {
+          got.push([key, img]);
+          done();
+        };
+        img.onerror = done;
+        img.src = src;
+      })
+  );
   return Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, timeout))]).then(() => got.slice());
 }
 
