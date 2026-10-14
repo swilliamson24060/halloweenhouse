@@ -237,6 +237,7 @@ async function boot() {
     input.attachWalk($('t-walk'), (on) => setOn($('t-walk'), on));
     press('t-use', () => input.trigger('interact'));
     press('t-light', () => input.trigger('flashlight'));
+    press('t-centre', () => input.trigger('recenter'));
     press('t-run', (b) => {
       input.runToggle = !input.runToggle;
       setOn(b, input.runToggle);

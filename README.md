@@ -21,15 +21,16 @@ Upload the whole folder (`index.html`, `manifest.webmanifest`, `icons/` and `js/
 - WASD or arrow keys: walk. Shift: hurry.
 - Mouse: look (click the page to capture the mouse).
 - E or click: open doors, read notes, use things.
+- C (or middle click): look straight ahead again, level with the floor.
 - F: torch on or off. M: sound on or off. Esc: pause and settings.
-- Gamepads work too.
+- Gamepads work too; click the right stick to look straight ahead.
 
 ## Phones and tablets
 
 - Walk (bottom left): hold it to walk forward. Keep holding while you drag to look with the other thumb, or slide the same thumb to steer; pressing it against the side of the screen keeps turning that way.
 - Left side: slide a thumb anywhere else on the left to move in any direction (a stick appears under it).
 - Right side: drag to look. Tap anything (a door, a note) to use it, or press Use, which lights up when something is in reach.
-- Run and Torch sit beside Use (Run with Walk held runs); Menu and Sound are at the top left.
+- Run and Torch sit beside Use (Run with Walk held runs), with Centre between them to look straight ahead again; Menu and Sound are at the top left.
 - Phones start on the Low detail level. The picture sharpens itself when the phone has power to spare and softens when frames slow down (desktop browsers only soften).
 - Android and iPad switch to full screen when you enter the house. iPhone Safari cannot do that for web pages, so the title card suggests Share, then Add to Home Screen, which opens the house full screen from its own icon.
 - Sound plays even with an iPhone's silent switch on (the in-game Sound button still mutes it). The house pauses when you switch apps or lock the phone, and keeps the screen awake while you play.

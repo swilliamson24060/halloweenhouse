@@ -25,6 +25,7 @@ export class Player {
     this.bobAmt = 0;
     this.groundTag = 'stone';
     this.frozen = false;
+    this.leveling = false;
     this.shake = 0;
     this.roll = 0;
     this.onStep = null;
@@ -42,6 +43,7 @@ export class Player {
     this.vy = 0;
     this.yaw = yaw;
     this.pitch = pitch;
+    this.leveling = false;
     this.eyeY = y + this.eye;
     this.updateCamera(0);
   }
@@ -58,6 +60,19 @@ export class Player {
       this.yaw -= look.dx * sens;
       this.pitch -= look.dy * sens * (input.invertY ? -1 : 1);
       this.pitch = clamp(this.pitch, -1.48, 1.48);
+      // recentre: swing the view level again, keeping the way you face; a
+      // deliberate look up or down takes over (a thumb's jitter does not)
+      if (input.take('recenter')) this.leveling = true;
+      if (this.leveling) {
+        if (Math.abs(look.dy) > 3) this.leveling = false;
+        else {
+          this.pitch = damp(this.pitch, 0, 14, dt);
+          if (Math.abs(this.pitch) < 0.002) {
+            this.pitch = 0;
+            this.leveling = false;
+          }
+        }
+      }
     }
 
     const ax = this.frozen ? { x: 0, y: 0 } : input.axis();

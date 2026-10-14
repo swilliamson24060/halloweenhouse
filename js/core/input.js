@@ -56,6 +56,7 @@ export class Input {
       this.keys.add(e.code);
       if (e.code === 'KeyE' || e.code === 'Enter') this.actions.add('interact');
       if (e.code === 'KeyF') this.actions.add('flashlight');
+      if (e.code === 'KeyC') this.actions.add('recenter');
       if (e.code === 'KeyM') this.actions.add('mute');
       if (e.code === 'Escape' || e.code === 'KeyP') this.actions.add('pause');
       if (e.code === 'CapsLock') this.runToggle = !this.runToggle;
@@ -85,6 +86,7 @@ export class Input {
       if (!this.enabled || performance.now() - this._lastTouch < 800) return;
       if (this.locked) {
         if (e.button === 0) this.actions.add('interact');
+        if (e.button === 1) this.actions.add('recenter');
         if (e.button === 2) this.actions.add('flashlight');
       } else if (this.dragLook) {
         this.dragging = true;
@@ -333,6 +335,7 @@ export class Input {
     const edge = (i) => pressed(i) && !this._padPrev[i];
     if (edge(0)) this.actions.add('interact');
     if (edge(3) || edge(2)) this.actions.add('flashlight');
+    if (edge(11)) this.actions.add('recenter'); // right stick click
     if (edge(9)) this.actions.add('pause');
     this._padRun = pressed(10) || pressed(4) || pressed(6);
     this._padPrev = pad.buttons.map((b) => b.pressed);

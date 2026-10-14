@@ -260,12 +260,14 @@ body.touch .settings input[type="checkbox"] { width: 24px; height: 24px; }
 #touch #t-walk.on { border-color: var(--brass); background: rgba(176,145,90,0.55); }
 #touch .tbar { position: absolute; left: calc(14px + var(--safe-l)); top: calc(12px + var(--safe-t)); display: flex; gap: 8px; }
 #touch .tbar button { min-width: 64px; height: 38px; padding: 0 12px; font-size: 0.78rem; }
-/* thumb arc in the bottom-right corner: Use under the thumb, Run and Torch beside it */
+/* thumb arc in the bottom-right corner: Use under the thumb, Run and Torch
+   beside it, and Centre (level the view) on the diagonal between them */
 #touch .tbtns { position: absolute; right: calc(14px + var(--safe-r)); bottom: calc(16px + var(--safe-b)); width: 172px; height: 172px; }
 #touch .tbtns button { position: absolute; border-radius: 50%; }
 #touch #t-use { right: 0; bottom: 0; width: 82px; height: 82px; font-size: 0.86rem; }
 #touch #t-run { right: 96px; bottom: 8px; width: 62px; height: 62px; }
 #touch #t-light { right: 10px; bottom: 96px; width: 62px; height: 62px; }
+#touch #t-centre { right: 81px; bottom: 81px; width: 54px; height: 54px; font-size: 0.66rem; }
 #touch #t-use.ready {
   border-color: var(--brass); background: rgba(176,145,90,0.4); box-shadow: 0 0 18px rgba(176,145,90,0.5);
   animation: beckon 1.8s ease-in-out infinite;
@@ -335,6 +337,7 @@ body.touch .settings input[type="checkbox"] { width: 24px; height: 24px; }
   </div>
   <div class="tbtns">
     <button id="t-light" type="button" class="on" aria-pressed="true">Torch</button>
+    <button id="t-centre" type="button" aria-label="Look straight ahead">Centre</button>
     <button id="t-run" type="button" aria-pressed="false">Run</button>
     <button id="t-use" type="button">Use</button>
   </div>
@@ -358,6 +361,7 @@ body.touch .settings input[type="checkbox"] { width: 24px; height: 24px; }
         <dt>Shift</dt><dd>Hurry</dd>
         <dt>E / Click</dt><dd>Open, read, use</dd>
         <dt>F</dt><dd>Lantern torch on or off</dd>
+        <dt>C</dt><dd>Look straight ahead</dd>
         <dt>Esc</dt><dd>Pause and settings</dd>
       </dl>
       <dl class="controls touch-only">
@@ -365,6 +369,7 @@ body.touch .settings input[type="checkbox"] { width: 24px; height: 24px; }
         <dt>Left side</dt><dd>Slide a thumb to move any way</dd>
         <dt>Right side</dt><dd>Drag to look around</dd>
         <dt>Tap</dt><dd>Open, read and use things</dd>
+        <dt>Centre</dt><dd>Look straight ahead</dd>
       </dl>
       <p class="tip rotate-tip">Turn your phone sideways for the widest view.</p>
       <div class="row">
