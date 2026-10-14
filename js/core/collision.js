@@ -50,16 +50,26 @@ export class CollisionWorld {
   }
 
   addBox(minX, minY, minZ, maxX, maxY, maxZ, tag = null) {
-    const cx = (minX + maxX) / 2;
-    const cz = (minZ + maxZ) / 2;
-    const hx = this._shrink(Math.abs(maxX - minX) / 2);
-    const hz = this._shrink(Math.abs(maxZ - minZ) / 2);
+    let x0 = Math.min(minX, maxX);
+    let x1 = Math.max(minX, maxX);
+    let z0 = Math.min(minZ, maxZ);
+    let z1 = Math.max(minZ, maxZ);
+    if (this.inset > 0) {
+      const cx = (x0 + x1) / 2;
+      const cz = (z0 + z1) / 2;
+      const hx = this._shrink((x1 - x0) / 2);
+      const hz = this._shrink((z1 - z0) / 2);
+      x0 = cx - hx;
+      x1 = cx + hx;
+      z0 = cz - hz;
+      z1 = cz + hz;
+    }
     const c = {
       type: BOX,
-      minX: cx - hx,
-      maxX: cx + hx,
-      minZ: cz - hz,
-      maxZ: cz + hz,
+      minX: x0,
+      maxX: x1,
+      minZ: z0,
+      maxZ: z1,
       minY: Math.min(minY, maxY),
       maxY: Math.max(minY, maxY),
       enabled: true,
