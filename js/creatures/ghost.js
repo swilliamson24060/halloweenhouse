@@ -1,9 +1,13 @@
 import * as THREE from 'three';
-import { damp, clamp } from '../core/util.js';
+import { damp } from '../core/util.js';
 import { NOISE_GLSL } from '../gfx/effects.js';
+import { buildFigure, SLOTS } from './figure.js';
+import { CAST } from './cast.js';
+import { paintGhostFace } from './ghostfaces.js';
 
 // Translucent apparitions drawn with a fresnel shader: a pale rim, a body
-// that fades into wisps at the hem, and a hollow-eyed face.
+// that fades into wisps at the hem, and a painted face. Each one is a
+// particular person from cast.js, built by figure.js.
 
 const VERT = /* glsl */ `
   uniform float uTime;
@@ -41,6 +45,8 @@ const FRAG =
   uniform float uGlow;
   uniform float uHem;
   uniform float uDistort;
+  uniform float uWet;
+  uniform float uSolid;
   uniform sampler2D uMap;
   uniform float uHasMap;
   varying vec3 vN;
@@ -63,8 +69,15 @@ const FRAG =
     if (uHasMap > 0.5) {
       vec4 t = texture2D(uMap, vUv);
       col = t.rgb * uColor * 1.15 * uGlow;
-      a = 0.92 * t.a;
+      a = 0.86 * t.a;
     }
+    if (uWet > 0.0) {
+      float drip = smoothstep(0.72, 0.98, noise3(vec3(vW.x * 34.0, vW.y * 2.2 + uTime * 1.3, vW.z * 34.0)));
+      a += drip * 0.3 * uWet;
+      col += vec3(0.55, 0.75, 0.8) * drip * uWet * 0.7;
+    }
+    col = mix(col, uColor * uGlow * (0.8 + 0.4 * nz), uSolid);
+    a = mix(a, 0.9, uSolid);
     vec3 dark = mix(vec3(0.0), uColor * 0.45, fres);
     col = mix(col, dark, uDark);
     a = mix(a, (0.6 + 0.35 * fres) * (0.8 + 0.2 * nz), uDark);
@@ -78,6 +91,41 @@ const FRAG =
     #include <fog_fragment>
   }`;
 
+// Depth-only pass drawn just before a ghost, so only its nearest surface is
+// shaded: no inner limbs and seams showing through the body. Discards where
+// the colour pass would be invisible (the faded hem, the face cap's margin).
+const DEPTH_FRAG =
+  NOISE_GLSL +
+  /* glsl */ `
+  uniform float uTime;
+  uniform float uHem;
+  uniform float uOpacity;
+  uniform sampler2D uMap;
+  uniform float uHasMap;
+  varying vec3 vW;
+  varying vec2 vUv;
+  varying float vY;
+  void main() {
+    float nz = noise3(vW * 3.0 + vec3(0.0, uTime * 0.7, 0.0));
+    float hem = uHem > 0.001 ? smoothstep(0.0, uHem, vY + (nz - 0.5) * 0.4) : 1.0;
+    if (hem * uOpacity < 0.06) discard;
+    if (uHasMap > 0.5 && texture2D(uMap, vUv).a < 0.35) discard;
+    gl_FragColor = vec4(0.0);
+  }`;
+
+function depthMaterial(m) {
+  return new THREE.ShaderMaterial({
+    uniforms: m.uniforms,
+    vertexShader: VERT,
+    fragmentShader: DEPTH_FRAG,
+    transparent: true,
+    colorWrite: false,
+    depthWrite: true,
+    side: THREE.DoubleSide,
+    fog: true,
+  });
+}
+
 function makeMaterial(ctx, o) {
   const uniforms = THREE.UniformsUtils.merge([
     THREE.UniformsLib.fog,
@@ -90,6 +138,8 @@ function makeMaterial(ctx, o) {
       uGlow: { value: o.glow ?? 1 },
       uHem: { value: o.hem ?? 0.55 },
       uDistort: { value: 0 },
+      uWet: { value: o.wet ? 1 : 0 },
+      uSolid: { value: o.solid ? 1 : 0 },
       uMap: { value: null },
       uHasMap: { value: 0 },
     },
@@ -105,116 +155,72 @@ function makeMaterial(ctx, o) {
   });
 }
 
-const L = (pts) => pts.map((p) => new THREE.Vector2(p[0], p[1]));
-const GOWN = L([
-  [0.0, 0.0],
-  [0.46, 0.0],
-  [0.42, 0.18],
-  [0.34, 0.5],
-  [0.25, 0.8],
-  [0.16, 1.02],
-  [0.18, 1.14],
-  [0.21, 1.27],
-  [0.2, 1.37],
-  [0.17, 1.44],
-  [0.07, 1.5],
-  [0.055, 1.57],
-  [0.0, 1.58],
-]);
-const COAT = L([
-  [0.0, 0.0],
-  [0.3, 0.0],
-  [0.28, 0.5],
-  [0.22, 1.0],
-  [0.22, 1.2],
-  [0.25, 1.38],
-  [0.24, 1.5],
-  [0.08, 1.58],
-  [0.06, 1.66],
-  [0.0, 1.67],
-]);
+// Faces and figures are shared by every instance of the same person.
+const FACES = new Map();
+const FIGURES = new Map();
+const WHITE = new THREE.Color(1, 1, 1);
 
-let FACE_TEX = null;
+function faceOf(who, spec) {
+  if (!FACES.has(who)) {
+    let h = 7;
+    for (const ch of who) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const t = new THREE.CanvasTexture(paintGhostFace(spec, h % 9973));
+    t.colorSpace = THREE.SRGBColorSpace;
+    FACES.set(who, t);
+  }
+  return FACES.get(who);
+}
 
-function buildBody(ctx, type, mats) {
-  const g = new THREE.Group();
-  // transforms are baked into each geometry so the shader's object-space
-  // height runs from the hem (0) to the crown for every part
-  const add = (geo, m, pos, scale, rot) => {
-    const geom = geo.clone();
-    const mtx = new THREE.Matrix4().compose(
-      pos || new THREE.Vector3(),
-      new THREE.Quaternion().setFromEuler(rot || new THREE.Euler()),
-      scale || new THREE.Vector3(1, 1, 1)
-    );
-    geom.applyMatrix4(mtx);
-    const mesh = new THREE.Mesh(geom, m);
-    mesh.renderOrder = 8;
-    g.add(mesh);
-    return mesh;
-  };
-  const V = (x, y, z) => new THREE.Vector3(x, y, z);
-  const body = mats.body;
-  const face = mats.face;
-  const gent = type === 'gent' || type === 'butler';
-  const profile = gent ? COAT : GOWN;
-  add(new THREE.LatheGeometry(profile, 20), body, null, V(1.25, 1, 0.85));
-  const headY = gent ? 1.79 : 1.69;
-  add(new THREE.SphereGeometry(0.118, 16, 12), body, V(0, headY, 0), V(0.92, 1.12, 0.96));
-  // face plane
-  const fp = add(new THREE.PlaneGeometry(0.23, 0.29), face, V(0, headY - 0.01, 0.105));
-  fp.renderOrder = 9;
-  // arms hanging slightly forward
-  const armGeo = new THREE.CylinderGeometry(0.022, 0.042, 0.64, 8, 1, true);
-  for (const s of [-1, 1]) {
-    const sy = gent ? 1.48 : 1.38;
-    add(armGeo, body, V(s * 0.235, sy - 0.31, 0.05), null, new THREE.Euler(0.14, 0, s * 0.08));
-    // long thin fingers rather than mittens
-    add(new THREE.SphereGeometry(0.03, 8, 6), body, V(s * 0.258, sy - 0.66, 0.1), V(0.7, 2.2, 0.45));
-  }
-  if (!gent) {
-    // long hair falling down the back
-    const hair = new THREE.CylinderGeometry(0.12, 0.2, 0.75, 14, 1, true, Math.PI * 0.55, Math.PI * 0.9);
-    add(hair, mats.hair, V(0, headY - 0.3, -0.02), V(1, 1, 0.9));
-    add(new THREE.SphereGeometry(0.125, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), mats.hair, V(0, headY + 0.01, -0.01), V(0.95, 1.1, 1.0));
-  } else {
-    add(new THREE.SphereGeometry(0.118, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.45), mats.hair, V(0, headY + 0.01, -0.01));
-  }
-  if (type === 'gent') {
-    add(new THREE.CylinderGeometry(0.105, 0.11, 0.24, 14), mats.hair, V(0, headY + 0.2, 0));
-    add(new THREE.CylinderGeometry(0.19, 0.19, 0.015, 16), mats.hair, V(0, headY + 0.09, 0));
-  }
-  if (type === 'veiled' || type === 'bride') {
-    const veil = new THREE.CylinderGeometry(0.13, 0.5, 1.6, 18, 1, true);
-    add(veil, mats.hair, V(0, headY - 0.7, -0.03), V(1, 1, 0.75));
-  }
-  if (type === 'maid') {
-    add(new THREE.PlaneGeometry(0.34, 0.75), mats.body, V(0, 0.75, 0.31), null, new THREE.Euler(-0.18, 0, 0));
-  }
-  return g;
+function figureOf(who, spec) {
+  if (!FIGURES.has(who)) FIGURES.set(who, buildFigure(spec));
+  return FIGURES.get(who);
 }
 
 export class Ghost {
-  constructor(ctx, type = 'lady', o = {}) {
+  constructor(ctx, who, o = {}) {
     this.ctx = ctx;
-    this.type = type;
-    if (!FACE_TEX) FACE_TEX = ctx.tex.ghostFace;
-    const color = o.color ?? (o.dark ? 0x8fa6c8 : 0xc8d6ea);
+    const spec = CAST[who];
+    if (!spec) throw new Error(`No such apparition: ${who}`);
+    this.who = who;
+    this.spec = spec;
+    const L = spec.look || {};
+    const base = new THREE.Color(o.color ?? L.color ?? 0xc8d6ea);
+    const glow = o.glow ?? L.glow ?? 1;
+    const hem = o.hem ?? L.hem ?? 0.55;
+    const wet = !!L.wet;
     this.mats = {
-      body: makeMaterial(ctx, { color, dark: o.dark, glow: o.glow, hem: o.hem }),
-      hair: makeMaterial(ctx, { color: o.dark ? 0x40506a : 0x6a7890, dark: true, glow: 0.6, hem: 0.3 }),
-      face: makeMaterial(ctx, { color: o.dark ? 0xc4d0e2 : 0xdce6f2, glow: o.dark ? 0.95 : 1.15, hem: 0.0 }),
+      body: makeMaterial(ctx, { color: base, dark: o.dark ?? L.dark, glow, hem, wet }),
+      light: makeMaterial(ctx, { color: base.clone().lerp(WHITE, 0.4), glow: glow * 1.2, hem, wet }),
+      dark: makeMaterial(ctx, { color: base.clone().multiplyScalar(0.5), dark: true, glow: glow * 0.7, hem: hem * 0.7, wet }),
+      skin: makeMaterial(ctx, { color: base.clone().lerp(WHITE, 0.3), glow: glow * 1.05, hem: 0 }),
+      face: makeMaterial(ctx, { color: base.clone().lerp(WHITE, 0.3), glow: glow * 1.0, hem: 0 }),
+      glow: makeMaterial(ctx, { color: L.glowColor ?? 0xffe4b0, glow: 1.6, hem: 0, solid: true }),
     };
-    this.mats.face.uniforms.uMap.value = FACE_TEX;
+    this.mats.face.uniforms.uMap.value = faceOf(who, spec);
     this.mats.face.uniforms.uHasMap.value = 1;
-    this.mats.face.uniforms.uWave.value = 0;
-    this.mats.hair.uniforms.uWave.value = 0.4;
+    for (const k of ['face', 'skin', 'glow']) this.mats[k].uniforms.uWave.value = 0;
+    this.mats.dark.uniforms.uWave.value = 0.5;
     this.group = new THREE.Group();
-    this.body = buildBody(ctx, type, this.mats);
+    this.body = new THREE.Group();
+    const fig = figureOf(who, spec);
+    for (const slot of SLOTS) {
+      if (!fig.geo[slot]) continue;
+      if (slot !== 'glow') {
+        // lights (flames, gilt, the crystal) stay visible through the shell
+        const pre = new THREE.Mesh(fig.geo[slot], depthMaterial(this.mats[slot]));
+        pre.renderOrder = 7;
+        pre.frustumCulled = false;
+        this.body.add(pre);
+      }
+      const mesh = new THREE.Mesh(fig.geo[slot], this.mats[slot]);
+      mesh.renderOrder = slot === 'face' ? 9 : slot === 'glow' ? 10 : 8;
+      mesh.frustumCulled = false;
+      this.body.add(mesh);
+    }
     this.group.add(this.body);
-    const scale = o.scale ?? (type === 'child' ? 0.62 : 1);
+    const scale = o.scale ?? 1;
     this.body.scale.setScalar(scale);
-    this.height = 1.7 * scale;
+    this.height = fig.height * scale;
     if (o.mirrorOnly) this.group.traverse((m) => m.layers.set(3));
     this.group.visible = false;
     ctx.scene.add(this.group);
@@ -222,7 +228,7 @@ export class Ghost {
     this.target = 0;
     this.speed = 1.5;
     this.maxOpacity = o.opacity ?? 0.85;
-    this.floatAmp = o.float ?? 0.05;
+    this.floatAmp = o.float ?? (spec.seated ? 0 : 0.05);
     this.phase = Math.random() * 10;
     this.look = o.look ?? true;
     this.yaw = o.yaw ?? 0;
@@ -232,6 +238,11 @@ export class Ghost {
     this._fadeRes = null;
     this._v = new THREE.Vector3();
     ctx.updaters.push((dt, t) => this.update(dt, t));
+  }
+
+  // Fade the figure out below `y` (object space), e.g. diners at a table.
+  setHem(y) {
+    for (const k of ['body', 'light', 'dark']) this.mats[k].uniforms.uHem.value = y;
   }
 
   get position() {
@@ -297,7 +308,8 @@ export class Ghost {
     if (!this.group.visible && !this.move) return;
     this.distort = damp(this.distort, 0, 1.2, dt);
     const flick = 0.92 + 0.08 * Math.sin(t * 31.0 + this.phase) * Math.sin(t * 7.3);
-    for (const m of [this.mats.body, this.mats.hair, this.mats.face]) {
+    for (const k in this.mats) {
+      const m = this.mats[k];
       m.uniforms.uTime.value = t + this.phase;
       m.uniforms.uOpacity.value = this.opacity * flick;
       m.uniforms.uDistort.value = this.distort;
@@ -344,12 +356,13 @@ export class Apparitions {
     this._c = new THREE.Vector3();
     this._f = new THREE.Vector3();
     this._d = new THREE.Vector3();
+    this._h = new THREE.Vector3();
     this.check = 0;
     ctx.updaters.push((dt) => this.update(dt));
   }
 
   add(o) {
-    const g = new Ghost(this.ctx, o.type ?? 'lady', { dark: o.dark, scale: o.scale, opacity: o.opacity ?? 0.6, look: o.look ?? true, color: o.color, float: o.float });
+    const g = new Ghost(this.ctx, o.who, { scale: o.scale, opacity: o.opacity ?? 0.6, look: o.look ?? true, float: o.float });
     g.place(o.pos.x, o.pos.y, o.pos.z, o.yaw ?? 0);
     const a = {
       id: o.id,
@@ -401,7 +414,10 @@ export class Apparitions {
       const cone = Math.max(0.94, 0.985 - 0.06 / Math.max(dist, 1));
       const looking = cos > cone;
       if (looking) {
-        if (!ctx.col.segmentBlocked(cam.x, cam.y, cam.z, c.x, c.y, c.z)) a.gaze += dt;
+        // a figure at a window shows only its head above the sill
+        const head = this._h.copy(g.position).setY(g.position.y + g.height * 0.92);
+        const clear = !ctx.col.segmentBlocked(cam.x, cam.y, cam.z, c.x, c.y, c.z) || !ctx.col.segmentBlocked(cam.x, cam.y, cam.z, head.x, head.y, head.z);
+        if (clear) a.gaze += dt;
         else a.gaze = 0;
       } else a.gaze = Math.max(0, a.gaze - dt * 2);
       if (a.gaze > 0.35) {

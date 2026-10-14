@@ -41,5 +41,7 @@ Upload the whole folder (`index.html`, `manifest.webmanifest`, `icons/` and `js/
 - `js/world/rooms_*.js`: furniture and the scripted scares for each floor.
 - `js/world/exterior.js`: grounds, fence, graveyard, garden and trees.
 - `js/creatures/`: ghosts, spiders, snakes, bats, crows and rats.
+- `js/creatures/cast.js`: who each apparition was in life (clothes, hair, pose, face); `figure.js` sculpts the bodies and `ghostfaces.js` paints the faces.
+- `js/gfx/portraits.js`: the family portraits, painted in oils at load time with the brushes in `brush.js` and the heads in `face.js`.
 - `js/audio/audio.js`: the sound synthesiser.
 - `js/story.js`: the notes found in the house.

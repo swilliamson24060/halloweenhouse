@@ -3,6 +3,7 @@ import { GeoBuilder, mat } from '../core/geo.js';
 import { Y } from './layout.js';
 import * as P from './props.js';
 import { Ghost } from '../creatures/ghost.js';
+import { DINERS } from '../creatures/cast.js';
 import { Snake } from '../creatures/snakes.js';
 import { Swing, Rocker, FollowEyes } from './dynamic.js';
 import { makeFire } from '../gfx/effects.js';
@@ -164,11 +165,11 @@ function foyer(ctx) {
   B.cyl('castIron', 1.55, GF + 0.28, 4.6, 0.12, 0.1, 0.56, 10, { open: true });
   for (let i = 0; i < 2; i++) B.rod('woodDark', 1.55 + i * 0.05, GF + 0.05, 4.6, 1.5 + i * 0.12, GF + 0.95, 4.55 - i * 0.05, 0.012, 0.012, 5);
   // portraits up the stair wall
-  P.at(B, -1.91, 3.25, 3.25, Math.PI / 2, () => P.painting(B, 0.55, 0.72, 'portrait_matriarch'));
-  const josiah = swapPortrait(ctx, B, -1.91, 3.9, 1.75, Math.PI / 2, 'portrait_patriarch', 0.6, 0.8);
-  P.at(B, -1.91, 6.0, 0.2, Math.PI / 2, () => P.painting(B, 0.5, 0.64, 'portrait_girl'));
-  P.at(B, -1.91, 6.5, -1.2, Math.PI / 2, () => P.painting(B, 0.5, 0.64, 'portrait_boy'));
-  P.at(B, 1.91, 2.6, -3.45, -Math.PI / 2, () => P.painting(B, 0.42, 0.55, 'portrait_oldman'));
+  P.at(B, -1.91, 3.25, 3.25, Math.PI / 2, () => P.painting(B, 0.55, 0.72, 'portrait_constance'));
+  const josiah = swapPortrait(ctx, B, -1.91, 3.9, 1.75, Math.PI / 2, 'portrait_josiah', 0.6, 0.8);
+  P.at(B, -1.91, 6.0, 0.2, Math.PI / 2, () => P.painting(B, 0.5, 0.64, 'portrait_clara'));
+  P.at(B, -1.91, 6.5, -1.2, Math.PI / 2, () => P.painting(B, 0.5, 0.64, 'portrait_thomas'));
+  P.at(B, 1.91, 2.6, -3.45, -Math.PI / 2, () => P.painting(B, 0.42, 0.55, 'portrait_ezra'));
   // chandelier, lit by someone expecting company
   const ch = chandelier(ctx, 0.65, GC, 1.6, { lit: true, room: 'foyer', intensity: 4.5, webs: true });
   K.corners(B, -1.93, 1.93, -2.93, 5.85, GC, 0.8);
@@ -243,7 +244,7 @@ function foyer(ctx) {
     if (!f.welcome && f.roomsVisited >= 5 && ctx.room && ctx.room.id !== 'foyer') {
       f.welcome = true;
       writing.visible = true;
-      josiah.set('portrait_empty');
+      josiah.set('portrait_josiah_empty');
     }
     if (f.welcome && !f.welcomeSeen && ctx.room && ctx.room.id === 'foyer' && K.seen(writing.position, 0.6)) {
       f.welcomeSeen = true;
@@ -293,7 +294,7 @@ function rearHall(ctx) {
   P.at(B, 1.7, GF, -7.2, -Math.PI / 2, () => P.table(B, { w: 0.6, d: 0.4, h: 0.78 }));
   ctx.col.addBox(1.45, GF, -7.55, 1.93, GF + 0.8, -6.85);
   P.at(B, 1.7, GF + 0.78, -7.25, 0, () => P.oilLamp(B));
-  P.at(B, -1.91, 2.7, -3.9, Math.PI / 2, () => P.painting(B, 0.4, 0.52, 'portrait_widow'));
+  P.at(B, -1.91, 2.7, -3.9, Math.PI / 2, () => P.painting(B, 0.4, 0.52, 'portrait_agnes'));
   B.cyl('castIron', 1.0, GF + 0.28, -7.6, 0.1, 0.09, 0.56, 10, { open: true });
   K.corners(B, -1.93, 1.93, -7.85, -3.07, GC, 0.7);
   ctx.rats.add(
@@ -322,7 +323,7 @@ function parlor(ctx) {
   pf.position.set(6.85 - 0.46, GF + 2.35, 1.9);
   pf.rotation.y = -Math.PI / 2;
   ctx.scene.add(pf);
-  P.at(B, 6.85 - 0.45, GF + 2.35, 1.9, -Math.PI / 2, () => P.painting(B, 0.62, 0.82, 'portrait_eyeless', { fw: 0.09 }));
+  P.at(B, 6.85 - 0.45, GF + 2.35, 1.9, -Math.PI / 2, () => P.painting(B, 0.62, 0.82, 'portrait_henrietta', { fw: 0.09 }));
   pf.updateMatrixWorld();
   new FollowEyes(ctx, pf, [V(-0.034, 0.082, 0.016), V(0.034, 0.082, 0.016)], { r: 0.013, spread: 0.006 });
   // mantel ornaments
@@ -415,7 +416,7 @@ function parlor(ctx) {
   const S = ctx.spiders;
   S.add(S.surface([2.08, GF + 1.5, 0.3], [0, 0, 1], [0, 1, 0], 2.2, 2.4), { size: 0.04 });
   S.add(S.floor(2.3, 6.2, 0.3, 5.6, GF + 0.006), { size: 0.03 });
-  ctx.ghosts.add({ id: 'parlour', type: 'gent', pos: V(8.2, GF, 6.9), yaw: -2.3, opacity: 0.55, maxDist: 9 });
+  ctx.ghosts.add({ id: 'parlour', who: 'ezra', pos: V(8.2, GF, 6.9), yaw: -2.3, opacity: 0.55, maxDist: 9 });
 
   // --- scares
   D.zone({
@@ -552,7 +553,7 @@ function library(ctx) {
   S.add(S.surface([2.4, GF + 3.25, -3.6], [1, 0, 0], [0, 0, 1], 4.2, 0.3), { size: 0.04 });
   S.add(S.floor(2.5, 6.3, -3.4, -0.6, GF + 0.006), { size: 0.035 });
   S.add(S.floor(2.5, 6.3, -3.4, -0.6, GF + 0.006), { size: 0.025 });
-  ctx.ghosts.add({ id: 'library', type: 'lady', dark: true, pos: V(6.35, GF, -3.15), yaw: -0.7, opacity: 0.7, maxDist: 8 });
+  ctx.ghosts.add({ id: 'library', who: 'constance', pos: V(6.35, GF, -3.15), yaw: -0.7, opacity: 0.7, maxDist: 8 });
 
   // a book flies off the shelf when you pass the desk
   const book = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.28, 0.05), ctx.mat.velvet);
@@ -803,16 +804,15 @@ function dining(ctx) {
   S.add(S.floor(tx - 0.5, tx + 0.5, tz - 1.7, tz + 1.7, top + 0.012), { size: 0.03 });
   S.add(S.floor(tx - 0.5, tx + 0.5, tz - 1.7, tz + 1.7, top + 0.012), { size: 0.022 });
   S.add(S.surface([-2.09, GF + 0.8, 1.0], [0, 0, 1], [0, 1, 0], 3.2, 2.5), { size: 0.04 });
-  ctx.ghosts.add({ id: 'dining', type: 'butler', pos: V(tx, GF, tz + 3.4), yaw: Math.PI, opacity: 0.55, maxDist: 10 });
+  ctx.ghosts.add({ id: 'dining', who: 'william', pos: V(tx, GF, tz + 3.4), yaw: Math.PI, opacity: 0.55, maxDist: 10 });
 
   // ghost diners only visible in a lightning flash
   const diners = [];
   seats.forEach(([x, z, ry], i) => {
     if (i === 6) return;
-    const g = new Ghost(ctx, i % 2 ? 'gent' : 'lady', { opacity: 1, look: false, float: 0, color: 0xd4e0f0 });
+    const g = new Ghost(ctx, DINERS[diners.length], { opacity: 1, look: false, float: 0 });
     g.place(x, GF - 0.5, z, ry);
-    g.mats.body.uniforms.uHem.value = 1.55;
-    g.mats.hair.uniforms.uHem.value = 1.35;
+    g.setHem(1.2);
     diners.push(g);
   });
   let party = 0;
@@ -935,7 +935,7 @@ function kitchen(ctx) {
     ],
     GF
   );
-  ctx.ghosts.add({ id: 'kitchen', type: 'maid', pos: V(-6.3, GF, -6.6), yaw: 0.7, opacity: 0.55, maxDist: 9 });
+  ctx.ghosts.add({ id: 'kitchen', who: 'bess', pos: V(-6.3, GF, -6.6), yaw: 0.7, opacity: 0.55, maxDist: 9 });
   new Snake(ctx, { x: -5.0, y: GF, z: -6.0, region: [-6.5, -7.4, -3.4, -1.3], length: 1.5 });
 
   D.zone({

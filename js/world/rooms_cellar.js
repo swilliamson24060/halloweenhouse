@@ -139,7 +139,7 @@ export function cellarRooms(ctx) {
   );
   new Snake(ctx, { x: 1.5, y: CF, z: 1.5, region: [-2.0, -1.5, 6.0, 5.4], length: 1.8, radius: 0.033 });
   new Snake(ctx, { x: -4.5, y: CF, z: -3.5, region: [-6.2, -7.2, -2.5, 1.2], length: 1.3 });
-  ctx.ghosts.add({ id: 'cellar', type: 'gent', dark: true, pos: V(2.0, CF, -2.6), yaw: 2.6, opacity: 0.7, maxDist: 9 });
+  ctx.ghosts.add({ id: 'cellar', who: 'walter', pos: V(2.0, CF, -2.6), yaw: 2.6, opacity: 0.7, maxDist: 9 });
 
   crypt(ctx);
 

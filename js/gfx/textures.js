@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RNG, NoiseField, clamp, smoothstep, nextFrame } from '../core/util.js';
+import { buildPortraits } from './portraits.js';
 
 // Every surface texture is painted procedurally on canvases at load time, so
 // the project ships without image assets. Textures that tile use world-space
@@ -1437,196 +1438,6 @@ function parchment() {
 
 // ----------------------------------------------------------- characters
 
-function portrait(kind) {
-  const W = 256;
-  const H = 320;
-  const c = cv(W, H);
-  const g = c.getContext('2d');
-  const bg = g.createRadialGradient(128, 120, 10, 128, 150, 230);
-  bg.addColorStop(0, '#4a3a28');
-  bg.addColorStop(1, '#0f0b08');
-  g.fillStyle = bg;
-  g.fillRect(0, 0, W, H);
-  const female = kind === 'matriarch' || kind === 'girl' || kind === 'widow';
-  const child = kind === 'girl' || kind === 'boy';
-  const s = child ? 0.82 : 1;
-  const hy = child ? 150 : 132;
-  if (kind !== 'empty') {
-    // garment
-    g.fillStyle = kind === 'girl' ? '#2a2630' : '#151316';
-    g.beginPath();
-    g.moveTo(10, H);
-    g.bezierCurveTo(20, 250, 70, 222 + (child ? 14 : 0), 128, 218 + (child ? 14 : 0));
-    g.bezierCurveTo(186, 222 + (child ? 14 : 0), 236, 250, 246, H);
-    g.closePath();
-    g.fill();
-    // collar
-    g.fillStyle = female ? 'rgba(200,190,170,0.75)' : 'rgba(210,205,190,0.85)';
-    g.beginPath();
-    if (female) {
-      g.ellipse(128, 222 + (child ? 14 : 0), 34 * s, 12, 0, 0, Math.PI * 2);
-    } else {
-      g.moveTo(108, 214);
-      g.lineTo(128, 250);
-      g.lineTo(148, 214);
-      g.closePath();
-    }
-    g.fill();
-    // neck
-    const skin = kind === 'widow' ? [190, 180, 175] : [206, 176, 146];
-    g.fillStyle = `rgb(${skin.map((v) => v * 0.8).join(',')})`;
-    g.fillRect(114, hy + 34 * s, 28, 52);
-    // hair behind
-    g.fillStyle = kind === 'oldman' ? '#8a8580' : '#20160f';
-    if (female) {
-      g.beginPath();
-      g.ellipse(128, hy - 4, 46 * s, 54 * s, 0, 0, Math.PI * 2);
-      g.fill();
-      if (kind === 'girl') {
-        g.fillRect(84, hy, 18, 110);
-        g.fillRect(154, hy, 18, 110);
-      }
-    }
-    // face
-    const fg = g.createRadialGradient(120, hy - 8, 6, 128, hy + 4, 60 * s);
-    fg.addColorStop(0, `rgb(${skin.join(',')})`);
-    fg.addColorStop(1, `rgb(${skin.map((v) => v * 0.42).join(',')})`);
-    g.fillStyle = fg;
-    g.beginPath();
-    g.ellipse(128, hy + 2, 36 * s, 48 * s, 0, 0, Math.PI * 2);
-    g.fill();
-    // hair on top
-    g.fillStyle = kind === 'oldman' ? '#8a8580' : '#22170f';
-    g.beginPath();
-    if (female) {
-      g.ellipse(128, hy - 36 * s, 38 * s, 20 * s, 0, Math.PI, Math.PI * 2);
-      g.ellipse(128, hy - 52 * s, 16 * s, 12 * s, 0, 0, Math.PI * 2);
-    } else {
-      g.ellipse(128, hy - 32 * s, 37 * s, 22 * s, 0, Math.PI, Math.PI * 2);
-    }
-    g.fill();
-    if (kind === 'girl') {
-      g.fillStyle = '#5a1820';
-      g.beginPath();
-      g.ellipse(150, hy - 44, 12, 7, 0.4, 0, Math.PI * 2);
-      g.fill();
-    }
-    // beard
-    if (kind === 'patriarch' || kind === 'oldman') {
-      g.fillStyle = kind === 'oldman' ? '#9a958e' : '#2a1d14';
-      g.beginPath();
-      g.moveTo(94, hy + 8);
-      g.bezierCurveTo(96, hy + 70, 160, hy + 70, 162, hy + 8);
-      g.bezierCurveTo(150, hy + 30, 106, hy + 30, 94, hy + 8);
-      g.fill();
-    }
-    // eyes
-    const ey = hy - 4 * s;
-    if (kind === 'eyeless') {
-      g.fillStyle = '#000';
-      g.beginPath();
-      g.ellipse(114, ey, 9, 6, 0, 0, Math.PI * 2);
-      g.ellipse(142, ey, 9, 6, 0, 0, Math.PI * 2);
-      g.fill();
-    } else {
-      g.fillStyle = 'rgba(30,20,15,0.85)';
-      g.beginPath();
-      g.ellipse(114 * 1 + (1 - s) * 14, ey, 7 * s, 4.5 * s, 0, 0, Math.PI * 2);
-      g.ellipse(142 - (1 - s) * 14, ey, 7 * s, 4.5 * s, 0, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = 'rgba(230,220,200,0.6)';
-      g.fillRect(115, ey - 2, 2, 2);
-      g.fillRect(143, ey - 2, 2, 2);
-    }
-    g.strokeStyle = 'rgba(30,20,15,0.6)';
-    g.lineWidth = 2.5;
-    g.beginPath();
-    g.moveTo(103, ey - 11);
-    g.lineTo(123, ey - 12);
-    g.moveTo(133, ey - 12);
-    g.lineTo(153, ey - 11);
-    g.stroke();
-    // mouth
-    g.strokeStyle = 'rgba(60,25,22,0.8)';
-    g.lineWidth = 2;
-    g.beginPath();
-    g.moveTo(118, hy + 26 * s);
-    g.lineTo(138, hy + 26 * s);
-    g.stroke();
-  }
-  // varnish, craquelure, vignette
-  paint(
-    c,
-    null,
-    (u, v, x, y, px) => {
-      const cr = Math.abs(F2.sample(u * 2, v * 2) - 0.5) < 0.01 || Math.abs(F2.sample(u * 2 + 0.5, v * 2) - 0.5) < 0.008;
-      const vg = 1 - Math.pow(Math.hypot(u - 0.5, v - 0.47) * 1.45, 2.4);
-      const k = Math.max(0.15, vg) * (cr ? 0.6 : 1) * (0.9 + (F3.sample(u * 4, v * 4) - 0.5) * 0.2);
-      px[0] *= k * 1.02;
-      px[1] *= k * 0.93;
-      px[2] *= k * 0.74;
-    },
-    true
-  );
-  return finish(c, { wrap: false });
-}
-
-function ghostFace() {
-  const S = 256;
-  const c = cv(S);
-  const g = c.getContext('2d');
-  g.clearRect(0, 0, S, S);
-  const fg = g.createRadialGradient(128, 118, 8, 128, 132, 108);
-  fg.addColorStop(0, 'rgba(232,238,244,0.95)');
-  fg.addColorStop(0.55, 'rgba(206,216,230,0.82)');
-  fg.addColorStop(1, 'rgba(190,200,222,0)');
-  g.fillStyle = fg;
-  g.beginPath();
-  g.ellipse(128, 134, 74, 106, 0, 0, Math.PI * 2);
-  g.fill();
-  g.globalCompositeOperation = 'source-atop';
-  const shadow = (x, y, rx, ry, rot, a0, a1) => {
-    g.save();
-    g.translate(x, y);
-    g.rotate(rot);
-    g.scale(1, ry / rx);
-    const gr = g.createRadialGradient(0, 0, 1, 0, 0, rx);
-    gr.addColorStop(0, `rgba(0,0,4,${a0})`);
-    gr.addColorStop(0.5, `rgba(14,16,26,${a1})`);
-    gr.addColorStop(0.8, 'rgba(50,58,78,0.3)');
-    gr.addColorStop(1, 'rgba(80,90,110,0)');
-    g.fillStyle = gr;
-    g.beginPath();
-    g.arc(0, 0, rx, 0, Math.PI * 2);
-    g.fill();
-    g.restore();
-  };
-  // deep, uneven sockets under a heavy brow
-  shadow(96, 116, 34, 26, 0.2, 1, 0.9);
-  shadow(160, 114, 33, 27, -0.15, 1, 0.88);
-  shadow(128, 92, 70, 14, 0, 0.0, 0.25);
-  // cheek hollows and the shadow of a nose
-  shadow(80, 160, 22, 34, 0.2, 0.2, 0.3);
-  shadow(176, 160, 22, 34, -0.2, 0.2, 0.3);
-  shadow(128, 150, 8, 16, 0, 0.5, 0.4);
-  // a mouth hanging slightly open
-  shadow(128, 198, 22, 13, 0.05, 0.95, 0.8);
-  // patchy translucency
-  g.globalCompositeOperation = 'destination-out';
-  const r = new RNG(66);
-  for (let i = 0; i < 90; i++) {
-    const x = r.float(50, 206);
-    const y = r.float(40, 236);
-    const rad = r.float(4, 16);
-    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
-    gr.addColorStop(0, `rgba(0,0,0,${r.float(0.08, 0.28)})`);
-    gr.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = gr;
-    g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
-  }
-  g.globalCompositeOperation = 'source-over';
-  return finish(c, { wrap: false });
-}
 
 function cobweb(corner = true) {
   const S = 256;
@@ -2082,11 +1893,9 @@ export async function buildTextures(renderer, onProgress = () => {}) {
       T.note = noteTex();
     },
     () => {
-      T.portraits = {};
-      for (const k of ['patriarch', 'matriarch', 'girl', 'boy', 'oldman', 'widow', 'eyeless', 'empty']) T.portraits[k] = portrait(k);
+      T.portraits = buildPortraits(renderer);
     },
     () => {
-      T.ghostFace = ghostFace();
       T.webCorner = cobweb(true);
       T.webRound = cobweb(false);
       T.cookie = flashlightCookie();

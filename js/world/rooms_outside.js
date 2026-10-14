@@ -46,7 +46,7 @@ export function outside(ctx) {
   });
 
   // a woman at the bedroom window who is gone when you look again
-  const watcher = new Ghost(ctx, 'lady', { opacity: 0.85, look: false, color: 0xd6e2f2 });
+  const watcher = new Ghost(ctx, 'vey', { opacity: 0.85, look: false });
   watcher.place(3.5, Y.f2, 5.55, 0);
   let watchT = 0;
   D.zone({
@@ -97,9 +97,10 @@ export function outside(ctx) {
     },
   });
 
-  // graveyard: Eleanor rises from behind her stone and walks to the tomb
+  // graveyard: Lucy Ashgrove, the bride, rises from behind her stone and
+  // walks to the tomb
   const g0 = ctx.graves[0];
-  const risen = new Ghost(ctx, 'bride', { opacity: 0.9, color: 0xdbe6f4, look: true });
+  const risen = new Ghost(ctx, 'lucy', { opacity: 0.9, look: true });
   risen.place(g0.x, g0.y - 1.7, g0.z - 0.5, 0);
   D.zone({
     id: 'risen',
@@ -140,9 +141,9 @@ export function outside(ctx) {
       ctx.director.addFear(0.2);
     },
   });
-  ctx.ghosts.add({ id: 'mourner', type: 'veiled', dark: true, pos: V(21.5, terrainHeight(21.5, -3.5), -3.5), yaw: -Math.PI / 2, opacity: 0.75, maxDist: 20, look: false });
+  ctx.ghosts.add({ id: 'mourner', who: 'margaret', pos: V(21.5, terrainHeight(21.5, -3.5), -3.5), yaw: -Math.PI / 2, opacity: 0.75, maxDist: 20, look: false });
   const ab = ctx.arbours[2];
-  ctx.ghosts.add({ id: 'garden', type: 'gent', pos: V(ab.x, ab.y, ab.z), yaw: 0.9, opacity: 0.6, maxDist: 18 });
+  ctx.ghosts.add({ id: 'garden', who: 'silas', pos: V(ab.x, ab.y, ab.z), yaw: 0.9, opacity: 0.6, maxDist: 18 });
   // snakes in the long grass
   new Snake(ctx, { x: 17, y: terrainHeight(17, 6), z: 6, region: [13, 1, 23, 10], length: 1.6 });
   new Snake(ctx, { x: -17, y: terrainHeight(-17, -2), z: -2, region: [-21, -6, -13, 2], length: 1.4 });

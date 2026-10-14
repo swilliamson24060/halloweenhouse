@@ -35,8 +35,8 @@ function upperHall(ctx) {
   P.at(B, 1.45, FF, 5.35, -2.6, () => P.chair(B, { seat: 'velvet', tall: true }));
   ctx.col.addCircle(1.45, 5.35, 0.28, FF, FF + 1);
   // portraits on the bare wall between doors, clear of their frames
-  P.at(B, 1.91, FF + 1.75, 0.0, -Math.PI / 2, () => P.painting(B, 0.5, 0.66, 'portrait_widow'));
-  P.at(B, -1.91, FF + 1.7, -6.5, Math.PI / 2, () => P.painting(B, 0.55, 0.7, 'portrait_oldman'));
+  P.at(B, 1.91, FF + 1.75, 0.0, -Math.PI / 2, () => P.painting(B, 0.5, 0.66, 'portrait_eleanor'));
+  P.at(B, -1.91, FF + 1.7, -6.5, Math.PI / 2, () => P.painting(B, 0.55, 0.7, 'portrait_lucy'));
   K.corners(B, -1.93, 0.93, -7.85, -1.8, FC, 0.8);
   cobweb(B, 1.93, FC, 5.85, -1, 0, 0, -1, 0.9);
   cobweb(B, -1.93, FC, 5.85, 1, 0, 0, -1, 0.7);
@@ -45,8 +45,8 @@ function upperHall(ctx) {
   ctx.spiders.add(S.surface([0.92, FF + 1.0, -7.7], [0, 0, 1], [0, 1, 0], 4.5, 2.2), { size: 0.045 });
   const hanger = ctx.spiders.hang(0.6, FC - 0.02, 2.2, 0.085);
   // the lady watching over the stairwell, and the child at the end of the hall
-  ctx.ghosts.add({ id: 'gallery', type: 'lady', pos: V(-1.35, FF, 4.9), yaw: Math.PI, opacity: 0.6, maxDist: 13 });
-  ctx.ghosts.add({ id: 'hall-child', type: 'child', pos: V(-0.3, FF, -7.35), yaw: 0, opacity: 0.6, maxDist: 12 });
+  ctx.ghosts.add({ id: 'gallery', who: 'agnes', pos: V(-1.35, FF, 4.9), yaw: Math.PI, opacity: 0.6, maxDist: 13 });
+  ctx.ghosts.add({ id: 'hall-child', who: 'thomas', pos: V(-0.3, FF, -7.35), yaw: 0, opacity: 0.6, maxDist: 12 });
 
   // a spider drops in front of your face
   D.zone({
@@ -93,7 +93,7 @@ function upperHall(ctx) {
     },
   });
   // the rushing woman: after the nursery, she comes for you down the hall
-  const rusher = new Ghost(ctx, 'lady', { opacity: 1, color: 0xdfe8f4, look: true });
+  const rusher = new Ghost(ctx, 'martha', { opacity: 1, look: true });
   D.zone({
     id: 'rush',
     box: [-0.7, FF - 0.2, -1.5, 1.93, FF + 3, 1.6],
@@ -270,7 +270,7 @@ function nursery(ctx) {
   K.corners(B, -6.85, -2.07, 0.57, 8.35, FC, 0.8);
   const S = ctx.spiders;
   S.add(S.floor(-6.5, -2.4, 0.9, 8.0, FF + 0.006), { size: 0.03 });
-  ctx.ghosts.add({ id: 'window', type: 'child', pos: V(-5.6, FF, 8.0), yaw: 0, opacity: 0.65, maxDist: 24, look: false });
+  ctx.ghosts.add({ id: 'window', who: 'clara', pos: V(-5.6, FF, 8.0), yaw: 0, opacity: 0.65, maxDist: 24, look: false });
 
   D.zone({
     id: 'nursery',
@@ -508,10 +508,10 @@ function master(ctx) {
   K.corners(B, 2.07, 6.85, 0.07, 5.85, FC, 0.9, [2]);
   const S = ctx.spiders;
   S.add(S.floor(2.4, 6.5, 2.5, 5.6, FF + 0.006), { size: 0.04 });
-  ctx.ghosts.add({ id: 'master', type: 'veiled', dark: true, pos: V(6.1, FF, 5.1), yaw: -2.4, opacity: 0.7, maxDist: 10 });
+  ctx.ghosts.add({ id: 'master', who: 'ada', pos: V(6.1, FF, 5.1), yaw: -2.4, opacity: 0.7, maxDist: 10 });
 
   // the husband who is only in the glass
-  const husband = new Ghost(ctx, 'gent', { mirrorOnly: !!mirror, opacity: 0.85, look: true, color: 0xc4d4e8 });
+  const husband = new Ghost(ctx, 'josiah', { mirrorOnly: !!mirror, opacity: 0.85, look: true });
   husband.place(4.9, FF, 4.2, -Math.PI / 2);
   const fwd = new THREE.Vector3();
   let state = 'idle';
@@ -593,7 +593,7 @@ function sewing(ctx) {
     const c = ctx.col.addDynamicCircle(x, z, 0.28, FF, FF + 1.7, bounds);
     forms.push({ g, c, moves: 0, last: 0 });
   });
-  ctx.ghosts.add({ id: 'sewing', type: 'lady', pos: V(4.6, FF, -2.9), yaw: 0.3, opacity: 0.5, maxDist: 9 });
+  ctx.ghosts.add({ id: 'sewing', who: 'dorcas', pos: V(4.6, FF, -2.9), yaw: 0.3, opacity: 0.5, maxDist: 9 });
   ctx.updaters.push(() => {
     if (!ctx.room || ctx.room.id !== 'sewing') return;
     const now = ctx.director.time;

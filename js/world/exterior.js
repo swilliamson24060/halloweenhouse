@@ -312,7 +312,7 @@ function frontPath(ctx) {
 
 // -------------------------------------------------------------- graveyard
 const EPITAPHS = [
-  ['ELEANOR', 'RAVENMOOR', '1849 – 1889', 'She keeps watch'],
+  ['LUCY', 'ASHGROVE', '1851 – 1869', 'Wed in white, laid in white'],
   ['JOSIAH', 'RAVENMOOR', '1841 – 1888', 'Lost at sea. No body lies here.'],
   ['CLARA', 'beloved daughter', '1880 – 1889', 'Gone to play'],
   ['THOMAS', 'beloved son', '1878 – 1889', 'He was not afraid'],
@@ -326,7 +326,7 @@ const EPITAPHS = [
   ['MARGARET', 'ASHGROVE', '1811 – 1870', 'Weep not'],
   ['WILLIAM', 'HOLLOWAY', '1838 – 1873', 'Called home'],
   ['UNKNOWN', 'found on the', 'lane, 1891', ''],
-  ['', '', '', ''],
+  ['ELEANOR', 'RAVENMOOR', '1849 – 1889', 'She keeps watch'],
   ['YOU', '', '', 'Not yet'],
 ];
 
