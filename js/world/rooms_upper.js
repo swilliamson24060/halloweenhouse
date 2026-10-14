@@ -34,8 +34,9 @@ function upperHall(ctx) {
   P.at(B, 1.72, FF + 0.8, 3.45, 0, () => P.vase(B));
   P.at(B, 1.45, FF, 5.35, -2.6, () => P.chair(B, { seat: 'velvet', tall: true }));
   ctx.col.addCircle(1.45, 5.35, 0.28, FF, FF + 1);
-  P.at(B, 1.91, FF + 1.75, -0.6, -Math.PI / 2, () => P.painting(B, 0.5, 0.66, 'portrait_widow'));
-  P.at(B, -1.91, FF + 1.7, -5.0, Math.PI / 2, () => P.painting(B, 0.55, 0.7, 'portrait_oldman'));
+  // portraits on the bare wall between doors, clear of their frames
+  P.at(B, 1.91, FF + 1.75, 0.0, -Math.PI / 2, () => P.painting(B, 0.5, 0.66, 'portrait_widow'));
+  P.at(B, -1.91, FF + 1.7, -6.5, Math.PI / 2, () => P.painting(B, 0.55, 0.7, 'portrait_oldman'));
   K.corners(B, -1.93, 0.93, -7.85, -1.8, FC, 0.8);
   cobweb(B, 1.93, FC, 5.85, -1, 0, 0, -1, 0.9);
   cobweb(B, -1.93, FC, 5.85, 1, 0, 0, -1, 0.7);

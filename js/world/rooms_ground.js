@@ -168,7 +168,7 @@ function foyer(ctx) {
   const josiah = swapPortrait(ctx, B, -1.91, 3.9, 1.75, Math.PI / 2, 'portrait_patriarch', 0.6, 0.8);
   P.at(B, -1.91, 6.0, 0.2, Math.PI / 2, () => P.painting(B, 0.5, 0.64, 'portrait_girl'));
   P.at(B, -1.91, 6.5, -1.2, Math.PI / 2, () => P.painting(B, 0.5, 0.64, 'portrait_boy'));
-  P.at(B, 1.91, 2.6, -2.55, -Math.PI / 2, () => P.painting(B, 0.42, 0.55, 'portrait_oldman'));
+  P.at(B, 1.91, 2.6, -3.45, -Math.PI / 2, () => P.painting(B, 0.42, 0.55, 'portrait_oldman'));
   // chandelier, lit by someone expecting company
   const ch = chandelier(ctx, 0.65, GC, 1.6, { lit: true, room: 'foyer', intensity: 4.5, webs: true });
   K.corners(B, -1.93, 1.93, -2.93, 5.85, GC, 0.8);
