@@ -24,6 +24,7 @@ Upload the whole folder (`index.html`, `manifest.webmanifest`, `icons/` and `js/
 - C (or middle click): look straight ahead again, level with the floor.
 - F: torch on or off. M: sound on or off. Esc: pause and settings.
 - Gamepads work too; click the right stick to look straight ahead.
+- Missed an apparition? The pause menu has a hint: each press tells you where one you have not seen yet is waiting, nearest first. The ending card offers the same if any are left.
 
 ## Phones and tablets
 

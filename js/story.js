@@ -78,3 +78,24 @@ export const ENDING = (seen, total) =>
   `Eleanor Ravenmoor is still waiting on the roof for a ship that will never come in. Tonight, for a little while, she had company. You witnessed ${seen} of the ${total} apparitions that walk Ravenmoor House.${
     seen < total ? ' The others are still here. They will wait for you too.' : ' None of them will forget you.'
   }`;
+
+// Where each apparition waits, for the hints in the pause menu and on the
+// ending card: [place, what to look for and how]. Left and right are as you
+// face the house from the street.
+export const HINTS = {
+  parlour: ['The Front Parlour', 'Old Captain Ravenmoor leans on his cane in the round bay of the turret.'],
+  library: ['The Library', 'His wife, Constance, reads in the far back corner, behind the desk and beside the tall shelves.'],
+  dining: ['The Dining Room', 'The butler waits with his tray at the head of the long table, by the front window.'],
+  kitchen: ['The Kitchen', 'The scullery maid stands with her bucket in the far corner, past the stove, by the barrels.'],
+  gallery: ['The Upper Landing', 'The housekeeper watches over the stairwell with her candle. At the top of the stairs, turn round and look back toward the front of the house.'],
+  'hall-child': ['The Upper Landing', 'A boy with a toy boat waits at the far end of the upstairs hall, at the back of the house.'],
+  window: ['The Nursery Window', 'A little girl with her doll stands at the nursery window, upstairs at the front of the left-hand wing. Look up at it from the front lawn, or come up behind her in the nursery.'],
+  master: ['The Master Bedroom', 'Nurse Ada stands with her basin by the round bay of the turret, upstairs at the front of the house.'],
+  sewing: ['The Sewing Room', 'Miss Finch the dressmaker stands among her dress forms upstairs, her scissors in her hand.'],
+  attic: ['The Attic Window', 'A very tall woman stands at the arched window high in the front gable, above the nursery. Look up at it from the front walk, or find her from inside the attic, beyond the rocking chair.'],
+  cellar: ['The Cellar', 'The old caretaker holds up his lantern in the middle of the cellar, near the gate of the wine cellar. The stairs go down from the kitchen, and the storm doors on the right-hand side of the house lead down too.'],
+  mourner: ['The Graveyard', 'A woman in mourning weeps among the gravestones to the right of the house, her face in her hands, turned toward the house.'],
+  garden: ['The Garden on the Hill', 'The groundskeeper leans on his spade under the highest arbour. Follow the stepping stones up the hill behind the left-hand side of the house.'],
+};
+
+export const HINT_TIP = 'They show themselves only to someone who looks straight at them, and one you hurry past without looking slips away for a while.';

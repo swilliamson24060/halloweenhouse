@@ -116,6 +116,7 @@ export class Hud {
 
   ending(text) {
     this.el.endingText.textContent = text;
+    if (this.onEnding) this.onEnding();
     this.el.ending.hidden = false;
     requestAnimationFrame(() => this.el.ending.classList.add('on'));
   }

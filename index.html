@@ -227,11 +227,18 @@ body.touch .settings input[type="range"] { height: 30px; }
 body.touch .settings input[type="checkbox"] { width: 24px; height: 24px; }
 .buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .found { font-size: 0.92rem; color: var(--ash); text-align: center; margin: 0 0 16px; font-style: italic; }
+/* where the unseen apparitions are waiting, one at a time, nearest first */
+.hints { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: -6px 0 20px; }
+.hint { max-width: 30em; margin: 0 auto; text-align: center; font-size: 0.95rem; line-height: 1.5; color: var(--bone); }
+.hint b { font-family: var(--display); font-weight: 400; letter-spacing: 0.08em; color: var(--brass); }
+.hint small { display: block; margin-top: 6px; font-size: 0.82rem; font-style: italic; color: var(--ash); }
+button.small { font-size: 0.82rem; padding: 7px 16px; }
 
 /* ---------- ending ---------- */
 #ending { background: rgba(0,0,0,0.88); opacity: 0; transition: opacity 2.5s; }
 #ending.on { opacity: 1; }
 #ending p { max-width: 30em; text-align: center; font-size: 1.15rem; line-height: 1.6; font-style: italic; }
+#ending p.hint { margin: 18px auto 0; font-size: 1rem; font-style: normal; }
 
 /* ---------- touch controls ---------- */
 #touch button {
@@ -406,6 +413,10 @@ body.touch .settings input[type="checkbox"] { width: 24px; height: 24px; }
   <div class="card">
     <h2>Paused</h2>
     <p class="found" id="pause-found"></p>
+    <div class="hints">
+      <p class="hint" id="pause-hint" hidden></p>
+      <button id="pause-hint-btn" type="button" class="quiet small">Need a hint?</button>
+    </div>
     <div class="settings">
       <label for="s-volume">Volume</label><input id="s-volume" type="range" min="0" max="1" step="0.05" value="0.8">
       <label for="s-bright">Brightness</label><input id="s-bright" type="range" min="0.7" max="1.8" step="0.05" value="1">
@@ -430,7 +441,9 @@ body.touch .settings input[type="checkbox"] { width: 24px; height: 24px; }
 <div id="ending" class="layer panel" hidden>
   <div>
     <p id="ending-text"></p>
+    <p class="hint" id="ending-hint" hidden></p>
     <div class="buttons" style="margin-top:22px">
+      <button id="ending-hint-btn" type="button" class="quiet">Where are the others?</button>
       <button id="ending-stay" type="button">Keep wandering</button>
     </div>
   </div>

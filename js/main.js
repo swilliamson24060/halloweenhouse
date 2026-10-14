@@ -1,7 +1,54 @@
 import { Game, autoQuality } from './game.js';
 import { isTouchDevice } from './core/util.js';
+import { HINTS, HINT_TIP } from './story.js';
 
 const $ = (id) => document.getElementById(id);
+
+// A button that tells you where the apparitions you have not seen yet are
+// waiting, one per press, nearest first: distance across the ground plus
+// 8 m for each floor between you (a hillside is not a floor). The two at
+// windows can be seen from their own floor or from the lawn, whichever is
+// nearer. Returns a reset, called whenever the panel holding it opens.
+const LEVEL = { cellar: -1, ground: 0, second: 1, attic: 2, deck: 3 };
+const FROM_LAWN = new Set(['window', 'attic']);
+
+function hinter(game, textEl, btn, first) {
+  let order = [];
+  let i = 0;
+  btn.addEventListener('click', () => {
+    if (!order.length) return;
+    const a = order[i % order.length];
+    i++;
+    const [where, what] = HINTS[a.id] || ['Somewhere in the house', 'One more is still waiting for you.'];
+    const b = document.createElement('b');
+    b.textContent = `${where}. `;
+    const tip = document.createElement('small');
+    tip.textContent = HINT_TIP;
+    const away = a.away > 0 ? ' It slipped away when you hurried past; give it a little while.' : '';
+    textEl.replaceChildren(b, what + away, tip);
+    textEl.hidden = false;
+    // with only one left, its hint stays put; otherwise offer the next
+    if (order.length === 1) btn.hidden = true;
+    else btn.textContent = `Another hint (${(i % order.length) + 1} of ${order.length})`;
+  });
+  return () => {
+    const ctx = game.ctx;
+    const p = ctx.player.pos;
+    const here = LEVEL[ctx.room ? ctx.room.floor : 'ground'] ?? 0;
+    const far = (a) => {
+      const q = a.ghost.position;
+      const room = ctx.rooms.at(q.clone().setY(q.y + 1));
+      const level = LEVEL[room ? room.floor : 'ground'] ?? 0;
+      const floors = Math.min(Math.abs(level - here), FROM_LAWN.has(a.id) ? Math.abs(here) : Infinity);
+      return Math.hypot(q.x - p.x, q.z - p.z) + 8 * floors;
+    };
+    order = ctx.apparitions.list.filter((a) => !a.seen).sort((x, y) => far(x) - far(y));
+    i = 0;
+    textEl.hidden = true;
+    btn.hidden = order.length === 0;
+    btn.textContent = first;
+  };
+}
 
 function loadSettings() {
   try {
@@ -140,9 +187,11 @@ async function boot() {
   // pause menu
   const pauseEl = $('pause');
   const fsBox = $('s-fullscreen');
+  const pauseHints = hinter(game, $('pause-hint'), $('pause-hint-btn'), 'Need a hint?');
   game.onPause = () => {
     const a = game.ctx.apparitions;
     $('pause-found').textContent = `You have witnessed ${a.seen} of ${a.total} apparitions.`;
+    pauseHints();
     fsBox.checked = isFullscreen();
     pauseEl.hidden = false;
     pauseEl.scrollTop = 0;
@@ -199,7 +248,8 @@ async function boot() {
     if (ac.state === 'interrupted' && game.state === 'playing') game.pause();
   });
 
-  // ending card
+  // ending card, with the same hints for any you missed
+  game.ctx.hud.onEnding = hinter(game, $('ending-hint'), $('ending-hint-btn'), 'Where are the others?');
   $('ending-stay').addEventListener('click', () => {
     game.ctx.hud.hideEnding();
     game.resume();
