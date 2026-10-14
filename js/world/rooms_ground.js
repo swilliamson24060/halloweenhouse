@@ -690,9 +690,10 @@ function seance(ctx) {
   const candB = K.candles(floorCandles, 'seance', { intensity: 2.0, distance: 6, scale: 0.05 });
   // wax drippings on the floor between them
   for (const p of floorCandles) B.cyl('candle', p.x, GF + 0.004, p.z, 0.07, 0.08, 0.008, 10);
-  // heavy drapes on the walls
+  // heavy drapes on the walls; the one on the hall wall stops short of the
+  // door (z -5.68 to -4.73) and the open leaf beside it
   for (const [x, z, ry, w] of [
-    [2.12, -6.2, Math.PI / 2, 3.4],
+    [2.12, -6.9, Math.PI / 2, 2.0],
     [4.6, -4.12, Math.PI, 4.4],
   ]) {
     P.at(B, x, GF, z, ry, () => {
