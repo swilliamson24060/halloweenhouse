@@ -200,6 +200,13 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  walter: {
+    src: 'art/ghosts/walter.glb',
+    height: 1.74,
+    // the caretaker in flat cap and waistcoat, lantern held out, eyes wide
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the

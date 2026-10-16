@@ -5,3 +5,6 @@ Gemini_Generated_Image_*
 # Models dropped in the top folder are originals; the game loads its copies
 # from art/ghosts.
 /*.glb
+
+# Models waiting to go through tools/ghost_glb.py, kept as supplied.
+/new_ghosts/
