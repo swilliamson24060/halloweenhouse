@@ -533,7 +533,9 @@ export class AudioEngine {
     const t0 = this.now;
     const o = this.out(pos, { wet: 1, dur: count * gap + 1, ref: 2.5 });
     for (let i = 0; i < count; i++) {
-      const t = t0 + i * gap + (Math.random() - 0.5) * 0.03;
+      // jitter only later: a time before zero (audio clock not yet running)
+      // throws, and takes the whole frame down with it
+      const t = t0 + i * gap + Math.random() * 0.03;
       const n = this.src(this.white, t, 0.12);
       const g = this.ac.createGain();
       this.env(g.gain, t, 0.9 * gain, 0.001, 0.005, 0.09);

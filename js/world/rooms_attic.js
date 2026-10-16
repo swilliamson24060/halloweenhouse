@@ -13,6 +13,8 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const AF = Y.attic;
 const AT = Y.atticTop;
 const DK = Y.deck;
+// where the widow keeps watch at the front edge of the roof
+const WIDOW = V(-2.4, DK, 4.75);
 
 export function atticRooms(ctx) {
   attic(ctx);
@@ -124,7 +126,12 @@ function attic(ctx) {
     radius: 0.5,
     range: 2.2,
     prompt: 'Climb to the roof',
-    onUse: () => travel(ctx, ctx.house.hatch.deck, 0),
+    // come up facing her, so the first thing on the roof is her back and
+    // the lantern held up against the sky
+    onUse: () => {
+      const to = ctx.house.hatch.deck;
+      travel(ctx, to, Math.atan2(to.x - WIDOW.x, to.z - WIDOW.z));
+    },
   });
   ctx.interact.add({
     pos: V(-0.5, DK + 0.3, 0.0),
@@ -274,7 +281,7 @@ function widowsWalk(ctx) {
   ctx.col.addCircle(-4.6, 3.2, 0.3, DK, DK + 1);
 
   const widow = new Ghost(ctx, 'eleanor', { opacity: 0.9, look: false, figure: ctx.ghostArt.eleanor });
-  widow.place(-2.4, DK, 4.75, 0);
+  widow.place(WIDOW.x, WIDOW.y, WIDOW.z, 0);
   ctx.widow = widow;
   let stage = 0;
   ctx.updaters.push(() => {
@@ -287,7 +294,8 @@ function widowsWalk(ctx) {
   });
   D.zone({
     id: 'finale',
-    sphere: [-2.4, DK + 1, 4.6, 4.2],
+    // you have to walk up to her: the hatch lets you out 3.9 m away
+    sphere: [WIDOW.x, DK + 1, WIDOW.z - 0.15, 2.6],
     exclusive: true,
     onEnter: async () => {
       stage = 2;
@@ -299,8 +307,11 @@ function widowsWalk(ctx) {
       ctx.sky.strike({ strength: 1.6, close: true });
       const cam = ctx.camera.position;
       const to = V(cam.x, DK, cam.z);
+      // she comes right up to you (measure before normalising, or she only
+      // ever moved 0.4 m)
       const d = to.clone().sub(widow.position);
-      to.copy(widow.position).addScaledVector(d.normalize(), Math.max(0, d.length() - 0.6));
+      const reach = Math.max(0, d.length() - 0.6);
+      to.copy(widow.position).addScaledVector(d.normalize(), reach);
       await widow.moveTo(to, 1.4);
       flashScreen(ctx, 0.6);
       ctx.audio.sting('glimpse');
