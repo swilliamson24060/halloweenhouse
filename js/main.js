@@ -24,8 +24,7 @@ function hinter(game, textEl, btn, first) {
     b.textContent = `${where}. `;
     const tip = document.createElement('small');
     tip.textContent = HINT_TIP;
-    const away = a.away > 0 ? ' It slipped away when you hurried past; give it a little while.' : '';
-    textEl.replaceChildren(b, what + away, tip);
+    textEl.replaceChildren(b, what, tip);
     textEl.hidden = false;
     // with only one left, its hint stays put; otherwise offer the next
     if (order.length === 1) btn.hidden = true;

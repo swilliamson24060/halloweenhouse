@@ -98,4 +98,4 @@ export const HINTS = {
   garden: ['The Garden on the Hill', 'The groundskeeper leans on his spade under the highest arbour. Follow the stepping stones up the hill behind the left-hand side of the house.'],
 };
 
-export const HINT_TIP = 'They show themselves only to someone who looks straight at them, and one you hurry past without looking slips away for a while.';
+export const HINT_TIP = 'Look straight at one and it counts. It lingers where it stands until you come right up to it.';

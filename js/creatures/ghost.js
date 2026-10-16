@@ -493,8 +493,8 @@ export class Ghost {
 }
 
 // Hidden ghosts that count toward the "apparitions witnessed" tally when the
-// player actually looks at them. Walk into one without looking and it slips
-// away, returning a while later.
+// player looks straight at one. Counted or not, each lingers where it stands
+// until the player comes right up to it; then it is gone for good.
 export class Apparitions {
   constructor(ctx) {
     this.ctx = ctx;
@@ -514,12 +514,13 @@ export class Apparitions {
       id: o.id,
       ghost: g,
       seen: false,
+      gone: false,
       gaze: 0,
       maxDist: o.maxDist ?? 14,
-      near: o.near ?? 1.6,
+      // come within this (about two feet) and it is gone
+      near: o.near ?? 0.6,
       opacity: o.opacity ?? 0.6,
       when: o.when,
-      away: 0,
       hint: o.hint,
       active: false,
     };
@@ -533,16 +534,11 @@ export class Apparitions {
     const cam = ctx.camera.position;
     const fwd = ctx.camera.getWorldDirection(this._f);
     for (const a of this.list) {
-      if (a.seen) continue;
+      if (a.gone) continue;
       const g = a.ghost;
       const c = g.center(this._c);
       const dist = c.distanceTo(cam);
       const allowed = !a.when || a.when();
-      if (a.away > 0) {
-        a.away -= dt;
-        if (a.away <= 0 && dist < 7) a.away = 4;
-        continue;
-      }
       const shouldShow = allowed && dist < a.maxDist + 6;
       if (shouldShow && !a.active) {
         a.active = true;
@@ -551,7 +547,21 @@ export class Apparitions {
         a.active = false;
         g.hide(1);
       }
-      if (!a.active || dist > a.maxDist) {
+      if (!a.active) {
+        a.gaze = 0;
+        continue;
+      }
+      const p = g.position;
+      if (Math.hypot(p.x - cam.x, p.z - cam.z) < a.near && Math.abs(c.y - cam.y) < 1.5) {
+        // right up to it: nobody comes that close without seeing it
+        if (a.seen) ctx.audio.whisper(c, { gain: 0.5 });
+        else this.witness(a);
+        a.gone = true;
+        a.active = false;
+        g.vanish(2.5);
+        continue;
+      }
+      if (a.seen || dist > a.maxDist) {
         a.gaze = 0;
         continue;
       }
@@ -566,17 +576,7 @@ export class Apparitions {
         if (clear) a.gaze += dt;
         else a.gaze = 0;
       } else a.gaze = Math.max(0, a.gaze - dt * 2);
-      if (a.gaze > 0.35) {
-        this.witness(a);
-        continue;
-      }
-      if (dist < a.near && !looking) {
-        // brushed past without looking: it slips away for now
-        g.vanish(2);
-        a.active = false;
-        a.away = 25;
-        ctx.audio.whisper(c, { gain: 0.5 });
-      }
+      if (a.gaze > 0.35) this.witness(a);
     }
   }
 
@@ -589,7 +589,6 @@ export class Apparitions {
     ctx.audio.sting('glimpse', a.ghost.center());
     ctx.director.addFear(0.2);
     ctx.flashlight.flicker(0.8);
-    setTimeout(() => a.ghost.vanish(2.5), 450);
     const n = A.seen;
     const lines = ['Did you see it too?', 'It was looking at you.', 'It was not there a moment ago.', 'You are not alone in here.'];
     ctx.hud.toast(n === A.total ? 'You have seen them all. They have seen you.' : lines[n % lines.length]);
