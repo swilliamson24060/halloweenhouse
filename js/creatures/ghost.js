@@ -100,10 +100,21 @@ const FRAG =
     a *= 1.0 - uDistort * (0.5 + 0.5 * sin(vW.y * 90.0 + uTime * 40.0));
     a *= hem * uOpacity;
     if (a < 0.004) discard;
-    gl_FragColor = vec4(col, a);
+    #ifdef DIRECT
+      // straight to the screen: tone map the light this adds (see makeMaterial)
+      gl_FragColor = vec4(col * a, a);
+    #else
+      gl_FragColor = vec4(col, a);
+    #endif
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
+    #ifdef DIRECT
+      gl_FragColor.rgb /= a;
+    #endif
     #include <fog_fragment>
+    #ifdef DIRECT
+      gl_FragColor.rgb *= a;
+    #endif
   }`;
 
 // Depth-only pass drawn just before a ghost, so only its nearest surface is
@@ -161,7 +172,7 @@ function makeMaterial(ctx, o) {
       uHasShade: { value: 0 },
     },
   ]);
-  return new THREE.ShaderMaterial({
+  const m = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: VERT,
     fragmentShader: FRAG,
@@ -170,6 +181,19 @@ function makeMaterial(ctx, o) {
     side: THREE.DoubleSide,
     fog: true,
   });
+  if (ctx.quality && !ctx.quality.post) {
+    // Without the HDR pass (the low preset, phones) each fragment is tone
+    // mapped before it is blended, so a thin bright glow adds only its
+    // alpha times a colour already squeezed under white: a fifth of what
+    // the HDR pass shows, and a figure that is mostly glow all but
+    // vanishes. Tone map the light it adds instead and blend that
+    // premultiplied, as the HDR pass would over the dark.
+    m.defines = { DIRECT: '' };
+    m.blending = THREE.CustomBlending;
+    m.blendSrc = THREE.OneFactor;
+    m.blendDst = THREE.OneMinusSrcAlphaFactor;
+  }
+  return m;
 }
 
 // Apparitions modelled elsewhere (glTF in art/ghosts) take the place of the
