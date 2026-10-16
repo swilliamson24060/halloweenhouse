@@ -51,6 +51,8 @@ const FRAG =
   uniform float uSolid;
   uniform sampler2D uMap;
   uniform float uHasMap;
+  uniform sampler2D uShade;
+  uniform float uHasShade;
   varying vec3 vN;
   varying vec3 vV;
   varying vec3 vW;
@@ -68,6 +70,17 @@ const FRAG =
     float a = mix(0.06, 0.74, fres) * (0.6 + 0.4 * nz);
     // faint vertical folds, like a gown seen through water
     a *= 0.72 + 0.28 * noise3(vec3(vW.x * 11.0, vW.y * 1.4 - uTime * 0.25, vW.z * 11.0));
+    if (uHasShade > 0.5) {
+      // a modelled figure's own light and shade: pale skin holds its shape
+      // and glows, the grey gown is a veil, black hair and eyes are shadow
+      float s = texture2D(uShade, vUv).r;
+      float pale = smoothstep(0.3, 0.75, s);
+      float black = 1.0 - smoothstep(0.1, 0.3, s);
+      col = uColor * uGlow * (0.25 + 0.75 * pale + 1.3 * fres) * (0.85 + 0.3 * nz);
+      a = a * (1.0 - pale) + pale * (0.24 + 0.5 * fres) * (0.75 + 0.25 * nz);
+      col = mix(col, uColor * 0.45 * fres, black);
+      a = mix(a, (0.5 + 0.35 * fres) * (0.8 + 0.2 * nz), black);
+    }
     if (uHasMap > 0.5) {
       vec4 t = texture2D(uMap, vUv);
       col = t.rgb * uColor * 1.15 * uGlow;
@@ -144,6 +157,8 @@ function makeMaterial(ctx, o) {
       uSolid: { value: o.solid ? 1 : 0 },
       uMap: { value: null },
       uHasMap: { value: 0 },
+      uShade: { value: null },
+      uHasShade: { value: 0 },
     },
   ]);
   return new THREE.ShaderMaterial({
@@ -161,6 +176,9 @@ function makeMaterial(ctx, o) {
 // built figure of the same person. Each mesh joins the material slot of the
 // first rule its name matches; scale brings the model to life size and
 // height is where the top of the head comes, for sound and sight lines.
+// With shade, the model's base colour texture is kept as light and shade
+// for its slot (one texture per slot): a painted face, hair and gown show
+// in the glow instead of one even veil.
 const GHOST_ART = {
   eleanor: {
     src: 'art/ghosts/eleanor.glb',
@@ -175,6 +193,13 @@ const GHOST_ART = {
       [/./, 'body'],
     ],
   },
+  henrietta: {
+    src: 'art/ghosts/henrietta.glb',
+    height: 2.0,
+    // the keening woman: arms flung wide, black hair to her waist
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the
@@ -182,13 +207,14 @@ const GHOST_ART = {
 export function fetchGhostArt(timeout = 8000) {
   const got = {};
   const loader = new GLTFLoader();
+  // a model that fails to load or to convert leaves the built figure
   const jobs = Object.entries(GHOST_ART).map(([who, art]) =>
-    loader.loadAsync(art.src).then(
-      (gltf) => {
+    loader
+      .loadAsync(art.src)
+      .then((gltf) => {
         got[who] = figureFromModel(gltf.scene, art);
-      },
-      () => {}
-    )
+      })
+      .catch(() => {})
   );
   return Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, timeout))]).then(() => ({ ...got }));
 }
@@ -198,24 +224,46 @@ export function fetchGhostArt(timeout = 8000) {
 function figureFromModel(scene, art) {
   scene.updateMatrixWorld(true);
   const floor = new THREE.Box3().setFromObject(scene).min.y;
-  const fit = new THREE.Matrix4().makeScale(art.scale, art.scale, art.scale).multiply(new THREE.Matrix4().makeTranslation(0, -floor, 0));
+  const s = art.scale ?? 1;
+  const fit = new THREE.Matrix4().makeScale(s, s, s).multiply(new THREE.Matrix4().makeTranslation(0, -floor, 0));
   const parts = {};
+  const shade = {};
   scene.traverse((o) => {
     if (!o.isMesh) return;
     const name = `${o.name} ${o.material ? o.material.name : ''}`;
     const slot = art.slots.find(([re]) => re.test(name))[1];
-    const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
-    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
-    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(fit, o.matrixWorld));
-    (parts[slot] ||= []).push(g);
+    if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
+    const src = o.geometry.attributes;
+    const map = art.shade && src.uv && o.material && o.material.map;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', floats(src.position));
+    g.setAttribute('normal', floats(src.normal));
+    g.setAttribute('uv', map ? floats(src.uv) : new THREE.Float32BufferAttribute(new Float32Array(src.position.count * 2), 2));
+    if (o.geometry.index) g.setIndex(o.geometry.index);
+    const flat = g.index ? g.toNonIndexed() : g;
+    flat.applyMatrix4(new THREE.Matrix4().multiplyMatrices(fit, o.matrixWorld));
+    (parts[slot] ||= []).push(flat);
+    if (map) {
+      // read as plain light and shade, not as colour
+      map.colorSpace = THREE.NoColorSpace;
+      shade[slot] = map;
+    }
   });
   const geo = {};
   for (const [slot, list] of Object.entries(parts)) {
     geo[slot] = mergeGeometries(list, false);
     geo[slot].computeBoundingSphere();
   }
-  return { geo, height: art.height };
+  return { geo, shade, height: art.height };
+}
+
+// A plain float copy of an attribute, so models stored compactly (quantised
+// or interleaved) can be moved and merged like any other.
+function floats(attr) {
+  const n = attr.itemSize;
+  const a = new Float32Array(attr.count * n);
+  for (let i = 0; i < attr.count; i++) for (let k = 0; k < n; k++) a[i * n + k] = attr.getComponent(i, k);
+  return new THREE.BufferAttribute(a, n);
 }
 
 // Faces and figures are shared by every instance of the same person.
@@ -265,7 +313,11 @@ export class Ghost {
     this.mats.dark.uniforms.uWave.value = 0.5;
     this.group = new THREE.Group();
     this.body = new THREE.Group();
-    const fig = o.figure || figureOf(who, spec);
+    const fig = o.figure || (ctx.ghostArt && ctx.ghostArt[who]) || figureOf(who, spec);
+    for (const [slot, t] of Object.entries(fig.shade || {})) {
+      this.mats[slot].uniforms.uShade.value = t;
+      this.mats[slot].uniforms.uHasShade.value = 1;
+    }
     for (const slot of SLOTS) {
       if (!fig.geo[slot]) continue;
       if (slot !== 'glow') {

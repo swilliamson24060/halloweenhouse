@@ -177,8 +177,9 @@ function attic(ctx) {
   ctx.scene.add(rcPivot);
   ctx.col.addCircle(-4.5, 7.3, 0.42, AF, AF + 1.2);
   const rocker = new Rocker(ctx, rc, { amp: 0.17, speed: 1.4, active: true });
-  // she stands right at the glass so the lawn, far below, can see her face
-  ctx.ghosts.add({ id: 'attic', who: 'henrietta', pos: V(-4.5, AF - 0.15, 8.2), yaw: 0, opacity: 0.6, maxDist: 18, look: false });
+  // she stands right at the glass so the lawn, far below, can see her face,
+  // turned a little toward the path, her arms flung out to the frame
+  ctx.ghosts.add({ id: 'attic', who: 'henrietta', pos: V(-4.68, AF - 0.15, 8.1), yaw: 0.3, opacity: 0.6, maxDist: 18, look: false });
 
   // the sheet that stands up
   const sheetGeo = new THREE.CylinderGeometry(0.22, 0.5, 1.7, 18, 8, true);
@@ -280,7 +281,7 @@ function widowsWalk(ctx) {
   P.at(B, -4.6, DK, 3.2, 2.6, () => P.chair(B, { seat: 'velvet' }));
   ctx.col.addCircle(-4.6, 3.2, 0.3, DK, DK + 1);
 
-  const widow = new Ghost(ctx, 'eleanor', { opacity: 0.9, look: false, figure: ctx.ghostArt.eleanor });
+  const widow = new Ghost(ctx, 'eleanor', { opacity: 0.9, look: false });
   widow.place(WIDOW.x, WIDOW.y, WIDOW.z, 0);
   ctx.widow = widow;
   let stage = 0;
