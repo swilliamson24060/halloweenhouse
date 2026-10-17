@@ -274,6 +274,14 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  bess: {
+    src: 'art/ghosts/bess_pruitt_ghost.glb',
+    height: 1.6,
+    // the scullery maid, frightened, in her mob cap and apron, sleeves
+    // rolled, her bucket in her hand
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the
