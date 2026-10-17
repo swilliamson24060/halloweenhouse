@@ -312,6 +312,14 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  clara: {
+    src: 'art/ghosts/clara_ravenmoor_ghost.glb',
+    height: 1.18,
+    // the little girl in her white dress, long pale hair loose, clutching
+    // her china doll
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the

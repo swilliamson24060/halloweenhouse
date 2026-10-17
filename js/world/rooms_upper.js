@@ -270,8 +270,10 @@ function nursery(ctx) {
   K.corners(B, -6.85, -2.07, 0.57, 8.35, FC, 0.8);
   const S = ctx.spiders;
   S.add(S.floor(-6.5, -2.4, 0.9, 8.0, FF + 0.006), { size: 0.03 });
-  // she looks out over the lawn, her back to the door, until you come in
-  ctx.ghosts.add({ id: 'window', who: 'clara', pos: V(-5.6, FF, 8.0), yaw: 0, opacity: 0.65, maxDist: 24, turnIn: 'nursery' });
+  // she looks out over the lawn, her back to the door, until you come in;
+  // up at the glass, clear of the cot, and lifted a hand's breadth so the
+  // lawn below sees her face over the sill
+  ctx.ghosts.add({ id: 'window', who: 'clara', pos: V(-5.43, FF + 0.25, 8.08), yaw: 0, opacity: 0.65, maxDist: 24, turnIn: 'nursery' });
 
   D.zone({
     id: 'nursery',
