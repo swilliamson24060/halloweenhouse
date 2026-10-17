@@ -305,6 +305,13 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  thomas: {
+    src: 'art/ghosts/thomas_ravenmoor_ghost.glb',
+    height: 1.32,
+    // the boy in his sailor suit and cap, his toy boat in both hands
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the
