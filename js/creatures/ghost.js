@@ -235,6 +235,14 @@ const GHOST_ART = {
       [/./, 'body'],
     ],
   },
+  margaret: {
+    src: 'art/ghosts/margaret_ashgrove_ghost.glb',
+    height: 1.5,
+    // the widow in her veil and bustle, bent over the gloved hands that hide
+    // her weeping
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the
@@ -350,8 +358,12 @@ export class Ghost {
     this.body = new THREE.Group();
     const fig = o.figure || (ctx.ghostArt && ctx.ghostArt[who]) || figureOf(who, spec);
     for (const [slot, t] of Object.entries(fig.shade || {})) {
-      this.mats[slot].uniforms.uShade.value = t;
-      this.mats[slot].uniforms.uHasShade.value = 1;
+      const u = this.mats[slot].uniforms;
+      u.uShade.value = t;
+      u.uHasShade.value = 1;
+      // its own light and shade say what is dark (a black dress, a pale
+      // face), not the look in cast.js
+      u.uDark.value = 0;
     }
     for (const slot of SLOTS) {
       if (!fig.geo[slot]) continue;
