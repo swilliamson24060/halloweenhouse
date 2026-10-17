@@ -243,6 +243,14 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  silas: {
+    src: 'art/ghosts/silas_crowe_ghost.glb',
+    height: 1.9,
+    // the old groundskeeper in his wide hat and frock coat, white beard to
+    // his chest, both hands on the handle of his spade
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the
