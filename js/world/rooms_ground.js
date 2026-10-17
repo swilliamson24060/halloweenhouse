@@ -558,7 +558,7 @@ function library(ctx) {
   S.add(S.floor(2.5, 6.3, -3.4, -0.6, GF + 0.006), { size: 0.035 });
   S.add(S.floor(2.5, 6.3, -3.4, -0.6, GF + 0.006), { size: 0.025 });
   // a step out of the corner, so she clears the shelves whichever way she turns
-  ctx.ghosts.add({ id: 'library', who: 'constance', pos: V(6.05, GF, -3.05), yaw: -0.7, opacity: 0.7, maxDist: 8 });
+  ctx.ghosts.add({ id: 'library', who: 'constance', pos: V(6.05, GF, -3.05), yaw: -1.0, opacity: 0.7, maxDist: 8 });
 
   // a book flies off the shelf when you pass the desk
   const book = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.28, 0.05), ctx.mat.velvet);
@@ -810,7 +810,8 @@ function dining(ctx) {
   S.add(S.floor(tx - 0.5, tx + 0.5, tz - 1.7, tz + 1.7, top + 0.012), { size: 0.03 });
   S.add(S.floor(tx - 0.5, tx + 0.5, tz - 1.7, tz + 1.7, top + 0.012), { size: 0.022 });
   S.add(S.surface([-2.09, GF + 0.8, 1.0], [0, 0, 1], [0, 1, 0], 3.2, 2.5), { size: 0.04 });
-  ctx.ghosts.add({ id: 'dining', who: 'william', pos: V(tx, GF, tz + 3.4), yaw: Math.PI, opacity: 0.55, maxDist: 10 });
+  // at the head of the table, turned toward the door from the hall
+  ctx.ghosts.add({ id: 'dining', who: 'william', pos: V(tx, GF, tz + 3.4), yaw: 2.6, opacity: 0.55, maxDist: 10 });
 
   // ghost diners only visible in a lightning flash
   const diners = [];

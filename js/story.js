@@ -89,7 +89,7 @@ export const HINTS = {
   kitchen: ['The Kitchen', 'The scullery maid stands with her bucket in the far corner, past the stove, by the barrels.'],
   gallery: ['The Upper Landing', 'The housekeeper watches over the stairwell with her candle. At the top of the stairs, turn round and go back toward the front of the house.'],
   'hall-child': ['The Upper Landing', 'A boy with a toy boat waits at the far end of the upstairs hall, at the back of the house.'],
-  window: ['The Nursery Window', 'A little girl with her doll stands at the nursery window, upstairs at the front of the left-hand wing. The front lawn shows her, but you have to go up to the nursery and come right up behind her.'],
+  window: ['The Nursery Window', 'A little girl with her doll stands at the nursery window, upstairs at the front of the left-hand wing. The front lawn shows her, but you have to go up to the nursery and walk right up to her.'],
   master: ['The Master Bedroom', 'Nurse Ada stands with her basin by the round bay of the turret, upstairs at the front of the house.'],
   sewing: ['The Sewing Room', 'Miss Finch the dressmaker stands among her dress forms upstairs, her scissors in her hand.'],
   attic: ['The Attic Window', 'A very tall woman stands at the arched window high in the front gable, above the nursery. The front walk shows her, but you have to climb to the attic and go to her, past the rocking chair.'],

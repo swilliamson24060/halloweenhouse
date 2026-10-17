@@ -535,18 +535,20 @@ export class Ghost {
 // Hidden ghosts that count toward the "apparitions witnessed" tally. A
 // glimpse is not enough, through a window or across a room: each lingers
 // where it stands until the player dares to walk right up to it, and only
-// then is it counted, and gone.
+// then is it counted, and gone. They keep still, facing the way you come
+// in; only one watching from a window with its back to the door (turnIn,
+// that room's id) turns to face you while you are in its room.
 export class Apparitions {
   constructor(ctx) {
     this.ctx = ctx;
     this.list = [];
     this._c = new THREE.Vector3();
     this._h = new THREE.Vector3();
-    ctx.updaters.push(() => this.update());
+    ctx.updaters.push((dt) => this.update(dt));
   }
 
   add(o) {
-    const g = new Ghost(this.ctx, o.who, { scale: o.scale, opacity: o.opacity ?? 0.6, look: o.look ?? true, float: o.float });
+    const g = new Ghost(this.ctx, o.who, { scale: o.scale, opacity: o.opacity ?? 0.6, look: false, float: o.float });
     g.place(o.pos.x, o.pos.y, o.pos.z, o.yaw ?? 0);
     const a = {
       id: o.id,
@@ -558,6 +560,7 @@ export class Apparitions {
       opacity: o.opacity ?? 0.6,
       when: o.when,
       hint: o.hint,
+      turnIn: o.turnIn,
       active: false,
     };
     this.list.push(a);
@@ -565,11 +568,20 @@ export class Apparitions {
     return a;
   }
 
-  update() {
-    const cam = this.ctx.camera.position;
+  update(dt) {
+    const ctx = this.ctx;
+    const cam = ctx.camera.position;
     for (const a of this.list) {
       if (a.seen) continue;
       const g = a.ghost;
+      if (a.turnIn) {
+        // to you while you are in its room, and back to its window after
+        g.look = !!ctx.room && ctx.room.id === a.turnIn;
+        if (!g.look) {
+          const d = g.yaw - g.group.rotation.y;
+          g.group.rotation.y += Math.atan2(Math.sin(d), Math.cos(d)) * (1 - Math.exp(-1.5 * dt));
+        }
+      }
       const c = g.center(this._c);
       const show = (!a.when || a.when()) && c.distanceTo(cam) < a.maxDist + 6;
       if (show !== a.active) {

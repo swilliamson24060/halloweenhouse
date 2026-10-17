@@ -141,7 +141,7 @@ export function outside(ctx) {
       ctx.director.addFear(0.2);
     },
   });
-  ctx.ghosts.add({ id: 'mourner', who: 'margaret', pos: V(21.5, terrainHeight(21.5, -3.5), -3.5), yaw: -Math.PI / 2, opacity: 0.75, maxDist: 20, look: false });
+  ctx.ghosts.add({ id: 'mourner', who: 'margaret', pos: V(21.5, terrainHeight(21.5, -3.5), -3.5), yaw: -Math.PI / 2, opacity: 0.75, maxDist: 20 });
   const ab = ctx.arbours[2];
   ctx.ghosts.add({ id: 'garden', who: 'silas', pos: V(ab.x, ab.y, ab.z), yaw: 0.9, opacity: 0.6, maxDist: 18 });
   // snakes in the long grass
