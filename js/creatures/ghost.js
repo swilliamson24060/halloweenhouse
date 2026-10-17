@@ -282,6 +282,14 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  agnes: {
+    src: 'art/ghosts/agnes_whitby_ghost.glb',
+    height: 1.6,
+    // the housekeeper in her dark dress and cap, her keys at her waist and
+    // a candle in her hand
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the
