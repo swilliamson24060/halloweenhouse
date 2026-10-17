@@ -297,6 +297,14 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  dorcas: {
+    src: 'art/ghosts/dorcas_finch_ghost.glb',
+    height: 1.67,
+    // the dressmaker, hair piled high, spectacles and tape measure, a hand
+    // on her hip and her shears held up in the other
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the
