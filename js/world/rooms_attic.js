@@ -179,7 +179,15 @@ function attic(ctx) {
   const rocker = new Rocker(ctx, rc, { amp: 0.17, speed: 1.4, active: true });
   // she stands right at the glass so the lawn, far below, can see her face,
   // turned a little toward the path, her arms flung out to the frame
-  ctx.ghosts.add({ id: 'attic', who: 'henrietta', pos: V(-4.68, AF - 0.15, 8.1), yaw: 0.3, opacity: 0.6, maxDist: 18, look: false });
+  const watcher = ctx.ghosts.add({ id: 'attic', who: 'henrietta', pos: V(-4.68, AF - 0.15, 8.1), yaw: 0.3, opacity: 0.6, maxDist: 18, look: false }).ghost;
+  // but come up into the attic behind her and she turns to face you, and
+  // back to her window once you have gone
+  ctx.updaters.push((dt) => {
+    watcher.look = !!ctx.room && ctx.room.id === 'attic';
+    if (watcher.look) return;
+    const d = watcher.yaw - watcher.group.rotation.y;
+    watcher.group.rotation.y += Math.atan2(Math.sin(d), Math.cos(d)) * (1 - Math.exp(-1.5 * dt));
+  });
 
   // the sheet that stands up
   const sheetGeo = new THREE.CylinderGeometry(0.22, 0.5, 1.7, 18, 8, true);

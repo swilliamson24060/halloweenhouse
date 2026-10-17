@@ -505,6 +505,7 @@ export class Apparitions {
     this.ctx = ctx;
     this.list = [];
     this._c = new THREE.Vector3();
+    this._h = new THREE.Vector3();
     ctx.updaters.push(() => this.update());
   }
 
@@ -516,8 +517,8 @@ export class Apparitions {
       ghost: g,
       seen: false,
       maxDist: o.maxDist ?? 14,
-      // walk within this of it (about two feet) to count it
-      near: o.near ?? 0.6,
+      // walk within this of it (about arm's length) to count it
+      near: o.near ?? 1.0,
       opacity: o.opacity ?? 0.6,
       when: o.when,
       hint: o.hint,
@@ -541,8 +542,16 @@ export class Apparitions {
         else g.hide(1);
       }
       const p = g.position;
-      if (a.active && Math.hypot(p.x - cam.x, p.z - cam.z) < a.near && Math.abs(c.y - cam.y) < 1.5) this.witness(a);
+      if (a.active && Math.hypot(p.x - cam.x, p.z - cam.z) < a.near && Math.abs(c.y - cam.y) < 1.5 && this.inSight(g, c, cam)) this.witness(a);
     }
+  }
+
+  // nothing solid between you and it: no counting through a wall or a shut
+  // door (its head will do, over a chair or a table)
+  inSight(g, c, cam) {
+    const col = this.ctx.col;
+    const head = this._h.copy(g.position).setY(g.position.y + g.height * 0.92);
+    return !col.segmentBlocked(cam.x, cam.y, cam.z, c.x, c.y, c.z) || !col.segmentBlocked(cam.x, cam.y, cam.z, head.x, head.y, head.z);
   }
 
   witness(a) {
