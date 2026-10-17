@@ -290,6 +290,13 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  ada: {
+    src: 'art/ghosts/ada_penrose_ghost.glb',
+    height: 1.65,
+    // the nurse in her frilled cap, cape and apron, holding out her basin
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the
