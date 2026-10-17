@@ -516,10 +516,29 @@ function master(ctx) {
   // the husband who is only in the glass
   const husband = new Ghost(ctx, 'josiah', { mirrorOnly: !!mirror, opacity: 0.85, look: true });
   husband.place(4.9, FF, 4.2, -Math.PI / 2);
+  // without a live mirror (phones) the glass is dark, so his picture shows in
+  // it instead, over your shoulder, coming and going with him
+  let glassPic = null;
+  if (!mirror) {
+    glassPic = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.5), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: 0 }));
+    glassPic.position.set(2.145, FF + 1.6, 4.42);
+    glassPic.rotation.y = Math.PI / 2;
+    glassPic.visible = false;
+    ctx.scene.add(glassPic);
+  }
   const fwd = new THREE.Vector3();
   let state = 'idle';
   let t0 = 0;
   ctx.updaters.push((dt) => {
+    if (glassPic) {
+      const map = husband.sprite ? husband.sprite.material.map : null;
+      if (glassPic.material.map !== map) {
+        glassPic.material.map = map;
+        glassPic.material.needsUpdate = true;
+      }
+      glassPic.material.opacity = husband.opacity;
+      glassPic.visible = !!map && husband.opacity > 0.004;
+    }
     if (!ctx.room || ctx.room.id !== 'master') {
       if (state === 'shown') husband.hide(3);
       state = state === 'done' ? 'done' : 'idle';

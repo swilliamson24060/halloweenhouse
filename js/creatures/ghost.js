@@ -320,6 +320,15 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  josiah: {
+    // the drowned captain is only ever seen in the bedroom mirror, so a
+    // picture will do: it always turns to face the glass. It stands from
+    // his knees (from, metres off the floor) and is size wide and tall.
+    picture: 'art/ghosts/josiah_ravenmoor_ghost.webp',
+    height: 1.8,
+    from: 0.42,
+    size: [1.11, 1.47],
+  },
 };
 
 // Models that have arrived, by person; those that could not be had at all;
@@ -340,13 +349,13 @@ export function fetchGhostArt(timeout = 8000) {
   return Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, timeout))]).then(() => ({ ...ARRIVED }));
 }
 
-// One model, tried again after 2, 4, 8, 16 and 32 seconds if the
-// connection drops it.
+// One model (or picture), tried again after 2, 4, 8, 16 and 32 seconds if
+// the connection drops it.
 function fetchModel(loader, who, art, tries) {
-  return loader
-    .loadAsync(art.src)
+  const load = art.picture ? new THREE.TextureLoader().loadAsync(art.picture) : loader.loadAsync(art.src);
+  return load
     .then(
-      (gltf) => arrive(who, figureFromModel(gltf.scene, art)),
+      (got) => arrive(who, art.picture ? figureFromPicture(got, art) : figureFromModel(got.scene, art)),
       () => {
         if (tries >= 5) return arrive(who, null);
         return new Promise((r) => setTimeout(r, 2000 * 2 ** tries)).then(() => fetchModel(loader, who, art, tries + 1));
@@ -360,6 +369,12 @@ function arrive(who, fig) {
   else FAILED[who] = true;
   for (const g of WAITING.get(who) || []) g.pending = fig || figureOf(who, CAST[who]);
   WAITING.delete(who);
+}
+
+// A picture standing in for a figure, for one seen only in a mirror.
+function figureFromPicture(tex, art) {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return { geo: {}, shade: {}, picture: tex, from: art.from ?? 0, size: art.size, height: art.height };
 }
 
 // The model's meshes merged per slot in figure space: feet on the floor at
@@ -501,8 +516,9 @@ export class Ghost {
   dress(fig) {
     for (const m of [...this.body.children]) {
       this.body.remove(m);
-      // each depth pass has a material of its own; the others are shared
-      if (m.renderOrder === 7) m.material.dispose();
+      // each depth pass and picture has a material of its own; the others
+      // are shared
+      if (m.renderOrder === 7 || m.isSprite) m.material.dispose();
     }
     for (const [slot, t] of Object.entries(fig.shade || {})) {
       const u = this.mats[slot].uniforms;
@@ -525,6 +541,17 @@ export class Ghost {
       mesh.renderOrder = slot === 'face' ? 9 : slot === 'glow' ? 10 : 8;
       mesh.frustumCulled = false;
       this.body.add(mesh);
+    }
+    // a picture is a cut-out that always faces whoever looks
+    this.sprite = null;
+    if (fig.picture) {
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: fig.picture, transparent: true, opacity: 0, depthWrite: false }));
+      sprite.center.set(0.5, 0);
+      sprite.position.y = fig.from;
+      sprite.scale.set(fig.size[0], fig.size[1], 1);
+      sprite.renderOrder = 8;
+      this.body.add(sprite);
+      this.sprite = sprite;
     }
     if (this.mirrorOnly) this.body.traverse((m) => m.layers.set(3));
     this.height = fig.height * this.scale;
@@ -621,6 +648,7 @@ export class Ghost {
       m.uniforms.uOpacity.value = this.opacity * flick;
       m.uniforms.uDistort.value = this.distort;
     }
+    if (this.sprite) this.sprite.material.opacity = this.opacity * flick;
     if (this.move) {
       const p = this.group.position;
       const to = this.move.to;
