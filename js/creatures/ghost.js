@@ -322,21 +322,29 @@ const GHOST_ART = {
   },
 };
 
+// Models that have arrived, by person, and the ghosts still in their built
+// figure while their model is on its way.
+const ARRIVED = {};
+const WAITING = new Map();
+
 // Fetching starts as loading begins; models that have arrived by the
-// deadline are used, and anyone missing keeps their built figure.
+// deadline are in the house from the start. One that comes later (a slow
+// connection) takes over from the built figure the first moment its ghost
+// is out of sight, rather than leaving the old figure for the whole visit.
 export function fetchGhostArt(timeout = 8000) {
-  const got = {};
   const loader = new GLTFLoader();
   // a model that fails to load or to convert leaves the built figure
   const jobs = Object.entries(GHOST_ART).map(([who, art]) =>
     loader
       .loadAsync(art.src)
       .then((gltf) => {
-        got[who] = figureFromModel(gltf.scene, art);
+        const fig = (ARRIVED[who] = figureFromModel(gltf.scene, art));
+        for (const g of WAITING.get(who) || []) g.pending = fig;
+        WAITING.delete(who);
       })
       .catch(() => {})
   );
-  return Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, timeout))]).then(() => ({ ...got }));
+  return Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, timeout))]).then(() => ({ ...ARRIVED }));
 }
 
 // The model's meshes merged per slot in figure space: feet on the floor at
@@ -390,6 +398,9 @@ function floats(attr) {
 const FACES = new Map();
 const FIGURES = new Map();
 const WHITE = new THREE.Color(1, 1, 1);
+const VIEW = new THREE.Frustum();
+const VIEW_M = new THREE.Matrix4();
+const BOUNDS = new THREE.Sphere();
 
 function faceOf(who, spec) {
   if (!FACES.has(who)) {
@@ -433,7 +444,45 @@ export class Ghost {
     this.mats.dark.uniforms.uWave.value = 0.5;
     this.group = new THREE.Group();
     this.body = new THREE.Group();
-    const fig = o.figure || (ctx.ghostArt && ctx.ghostArt[who]) || figureOf(who, spec);
+    this.group.add(this.body);
+    this.scale = o.scale ?? 1;
+    this.body.scale.setScalar(this.scale);
+    this.mirrorOnly = !!o.mirrorOnly;
+    if (this.mirrorOnly) this.group.traverse((m) => m.layers.set(3));
+    const model = o.figure || (ctx.ghostArt && ctx.ghostArt[who]) || ARRIVED[who];
+    if (!model && GHOST_ART[who]) {
+      // its model is still on its way: the built figure until it comes
+      if (!WAITING.has(who)) WAITING.set(who, new Set());
+      WAITING.get(who).add(this);
+    }
+    this.pending = null;
+    this.dress(model || figureOf(who, spec));
+    this.group.visible = false;
+    ctx.scene.add(this.group);
+    this.opacity = 0;
+    this.target = 0;
+    this.speed = 1.5;
+    this.maxOpacity = o.opacity ?? 0.85;
+    this.floatAmp = o.float ?? (spec.seated ? 0 : 0.05);
+    this.phase = Math.random() * 10;
+    this.look = o.look ?? true;
+    this.yaw = o.yaw ?? 0;
+    this.distort = 0;
+    this.baseY = 0;
+    this.move = null;
+    this._fadeRes = null;
+    this._v = new THREE.Vector3();
+    ctx.updaters.push((dt, t) => this.update(dt, t));
+  }
+
+  // Put on a figure: its meshes in this ghost's materials, shaded by the
+  // figure's own light and shade where a model brings that.
+  dress(fig) {
+    for (const m of [...this.body.children]) {
+      this.body.remove(m);
+      // each depth pass has a material of its own; the others are shared
+      if (m.renderOrder === 7) m.material.dispose();
+    }
     for (const [slot, t] of Object.entries(fig.shade || {})) {
       const u = this.mats[slot].uniforms;
       u.uShade.value = t;
@@ -456,27 +505,18 @@ export class Ghost {
       mesh.frustumCulled = false;
       this.body.add(mesh);
     }
-    this.group.add(this.body);
-    const scale = o.scale ?? 1;
-    this.body.scale.setScalar(scale);
-    this.height = fig.height * scale;
-    if (o.mirrorOnly) this.group.traverse((m) => m.layers.set(3));
-    this.group.visible = false;
-    ctx.scene.add(this.group);
-    this.opacity = 0;
-    this.target = 0;
-    this.speed = 1.5;
-    this.maxOpacity = o.opacity ?? 0.85;
-    this.floatAmp = o.float ?? (spec.seated ? 0 : 0.05);
-    this.phase = Math.random() * 10;
-    this.look = o.look ?? true;
-    this.yaw = o.yaw ?? 0;
-    this.distort = 0;
-    this.baseY = 0;
-    this.move = null;
-    this._fadeRes = null;
-    this._v = new THREE.Vector3();
-    ctx.updaters.push((dt, t) => this.update(dt, t));
+    if (this.mirrorOnly) this.body.traverse((m) => m.layers.set(3));
+    this.height = fig.height * this.scale;
+  }
+
+  // Whether any of it could be on screen.
+  inView() {
+    const cam = this.ctx.camera;
+    VIEW.setFromProjectionMatrix(VIEW_M.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    BOUNDS.center.copy(this.group.position);
+    BOUNDS.center.y += this.height * 0.5;
+    BOUNDS.radius = this.height * 0.75;
+    return VIEW.intersectsSphere(BOUNDS);
   }
 
   // Fade the figure out below `y` (object space), e.g. diners at a table.
@@ -532,6 +572,12 @@ export class Ghost {
   }
 
   update(dt, t) {
+    // a model that came late goes on while no one is looking
+    if (this.pending && (!this.group.visible || !this.inView())) {
+      const fig = this.pending;
+      this.pending = null;
+      this.dress(fig);
+    }
     const d = this.target - this.opacity;
     if (Math.abs(d) > 0.002) {
       this.opacity += Math.sign(d) * Math.min(Math.abs(d), this.speed * dt);
