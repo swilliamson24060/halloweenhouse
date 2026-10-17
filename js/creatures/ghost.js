@@ -322,29 +322,44 @@ const GHOST_ART = {
   },
 };
 
-// Models that have arrived, by person, and the ghosts still in their built
-// figure while their model is on its way.
+// Models that have arrived, by person; those that could not be had at all;
+// and the ghosts waiting, unseen, for theirs.
 const ARRIVED = {};
+const FAILED = {};
 const WAITING = new Map();
 
 // Fetching starts as loading begins; models that have arrived by the
-// deadline are in the house from the start. One that comes later (a slow
-// connection) takes over from the built figure the first moment its ghost
-// is out of sight, rather than leaving the old figure for the whole visit.
+// deadline are in the house from the start. A ghost whose model comes later
+// (a slow connection) is simply not there until it does, then appears the
+// first moment it is out of sight. Only a model that cannot be had at all
+// (still failing after a minute of tries, or unreadable) leaves the built
+// figure in its place.
 export function fetchGhostArt(timeout = 8000) {
   const loader = new GLTFLoader();
-  // a model that fails to load or to convert leaves the built figure
-  const jobs = Object.entries(GHOST_ART).map(([who, art]) =>
-    loader
-      .loadAsync(art.src)
-      .then((gltf) => {
-        const fig = (ARRIVED[who] = figureFromModel(gltf.scene, art));
-        for (const g of WAITING.get(who) || []) g.pending = fig;
-        WAITING.delete(who);
-      })
-      .catch(() => {})
-  );
+  const jobs = Object.entries(GHOST_ART).map(([who, art]) => fetchModel(loader, who, art, 0));
   return Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, timeout))]).then(() => ({ ...ARRIVED }));
+}
+
+// One model, tried again after 2, 4, 8, 16 and 32 seconds if the
+// connection drops it.
+function fetchModel(loader, who, art, tries) {
+  return loader
+    .loadAsync(art.src)
+    .then(
+      (gltf) => arrive(who, figureFromModel(gltf.scene, art)),
+      () => {
+        if (tries >= 5) return arrive(who, null);
+        return new Promise((r) => setTimeout(r, 2000 * 2 ** tries)).then(() => fetchModel(loader, who, art, tries + 1));
+      }
+    )
+    .catch(() => arrive(who, null));
+}
+
+function arrive(who, fig) {
+  if (fig) ARRIVED[who] = fig;
+  else FAILED[who] = true;
+  for (const g of WAITING.get(who) || []) g.pending = fig || figureOf(who, CAST[who]);
+  WAITING.delete(who);
 }
 
 // The model's meshes merged per slot in figure space: feet on the floor at
@@ -368,18 +383,21 @@ function figureFromModel(scene, art) {
     g.setAttribute('normal', floats(src.normal));
     g.setAttribute('uv', map ? floats(src.uv) : new THREE.Float32BufferAttribute(new Float32Array(src.position.count * 2), 2));
     if (o.geometry.index) g.setIndex(o.geometry.index);
-    const flat = g.index ? g.toNonIndexed() : g;
-    flat.applyMatrix4(new THREE.Matrix4().multiplyMatrices(fit, o.matrixWorld));
-    (parts[slot] ||= []).push(flat);
+    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(fit, o.matrixWorld));
+    (parts[slot] ||= []).push(g);
     if (map) {
-      // read as plain light and shade, not as colour
+      // plain light and shade, not colour: one channel on the graphics card
+      // instead of four
       map.colorSpace = THREE.NoColorSpace;
+      map.format = THREE.RedFormat;
       shade[slot] = map;
     }
   });
   const geo = {};
   for (const [slot, list] of Object.entries(parts)) {
-    geo[slot] = mergeGeometries(list, false);
+    // corners keep sharing their vertices where every part has an index
+    const all = list.every((g) => g.index) ? list : list.map((g) => (g.index ? g.toNonIndexed() : g));
+    geo[slot] = mergeGeometries(all, false);
     geo[slot].computeBoundingSphere();
   }
   return { geo, shade, height: art.height };
@@ -449,14 +467,17 @@ export class Ghost {
     this.body.scale.setScalar(this.scale);
     this.mirrorOnly = !!o.mirrorOnly;
     if (this.mirrorOnly) this.group.traverse((m) => m.layers.set(3));
+    const art = GHOST_ART[who];
     const model = o.figure || (ctx.ghostArt && ctx.ghostArt[who]) || ARRIVED[who];
-    if (!model && GHOST_ART[who]) {
-      // its model is still on its way: the built figure until it comes
+    this.pending = null;
+    this.dressed = false;
+    if (model || !art || FAILED[who]) this.dress(model || figureOf(who, spec));
+    else {
+      // its model is still on its way: nothing to see until it comes
+      this.height = art.height * this.scale;
       if (!WAITING.has(who)) WAITING.set(who, new Set());
       WAITING.get(who).add(this);
     }
-    this.pending = null;
-    this.dress(model || figureOf(who, spec));
     this.group.visible = false;
     ctx.scene.add(this.group);
     this.opacity = 0;
@@ -507,6 +528,7 @@ export class Ghost {
     }
     if (this.mirrorOnly) this.body.traverse((m) => m.layers.set(3));
     this.height = fig.height * this.scale;
+    this.dressed = true;
   }
 
   // Whether any of it could be on screen.
@@ -671,8 +693,9 @@ export class Apparitions {
     const ctx = this.ctx;
     const cam = ctx.camera.position;
     for (const a of this.list) {
-      if (a.seen) continue;
       const g = a.ghost;
+      // counted, or its model still on its way: not here for now
+      if (a.seen || !g.dressed) continue;
       if (a.turnIn) {
         // to you while you are in its room, and back to its window after
         g.look = !!ctx.room && ctx.room.id === a.turnIn;
