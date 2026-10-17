@@ -267,6 +267,13 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  william: {
+    src: 'art/ghosts/william_holloway_ghost.glb',
+    height: 1.88,
+    // the butler in his tails, a decanter on the silver tray he holds out
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the
