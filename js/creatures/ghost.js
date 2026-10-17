@@ -259,6 +259,14 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  constance: {
+    src: 'art/ghosts/constance_ravenmoor_ghost.glb',
+    height: 1.55,
+    // his wife in her lace cap and spectacles, shawl over her shoulders, a
+    // small book open in her hands
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the

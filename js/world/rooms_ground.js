@@ -557,7 +557,8 @@ function library(ctx) {
   S.add(S.surface([2.4, GF + 3.25, -3.6], [1, 0, 0], [0, 0, 1], 4.2, 0.3), { size: 0.04 });
   S.add(S.floor(2.5, 6.3, -3.4, -0.6, GF + 0.006), { size: 0.035 });
   S.add(S.floor(2.5, 6.3, -3.4, -0.6, GF + 0.006), { size: 0.025 });
-  ctx.ghosts.add({ id: 'library', who: 'constance', pos: V(6.35, GF, -3.15), yaw: -0.7, opacity: 0.7, maxDist: 8 });
+  // a step out of the corner, so she clears the shelves whichever way she turns
+  ctx.ghosts.add({ id: 'library', who: 'constance', pos: V(6.05, GF, -3.05), yaw: -0.7, opacity: 0.7, maxDist: 8 });
 
   // a book flies off the shelf when you pass the desk
   const book = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.28, 0.05), ctx.mat.velvet);
