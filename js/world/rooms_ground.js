@@ -2,8 +2,6 @@ import * as THREE from 'three';
 import { GeoBuilder, mat } from '../core/geo.js';
 import { Y } from './layout.js';
 import * as P from './props.js';
-import { Ghost } from '../creatures/ghost.js';
-import { DINERS } from '../creatures/cast.js';
 import { Snake } from '../creatures/snakes.js';
 import { Swing, Rocker, FollowEyes, PaintedEyes } from './dynamic.js';
 import { makeFire } from '../gfx/effects.js';
@@ -813,32 +811,13 @@ function dining(ctx) {
   // at the head of the table, turned toward the door from the hall
   ctx.ghosts.add({ id: 'dining', who: 'william', pos: V(tx, GF, tz + 3.4), yaw: 2.6, opacity: 0.55, maxDist: 10 });
 
-  // ghost diners only visible in a lightning flash
-  const diners = [];
-  seats.forEach(([x, z, ry], i) => {
-    if (i === 6) return;
-    const g = new Ghost(ctx, DINERS[diners.length], { opacity: 1, look: false, float: 0 });
-    g.place(x, GF - 0.5, z, ry);
-    g.setHem(1.2);
-    diners.push(g);
-  });
-  let party = 0;
-  ctx.updaters.push((dt) => {
-    if (party <= 0) return;
-    party -= dt;
-    const f = ctx.sky.flash;
-    for (const g of diners) {
-      g.opacity = f > 0.25 ? Math.min(0.9, f * 1.2) : 0;
-      g.target = g.opacity;
-    }
-  });
+  // lightning close by, a moan from the empty chairs, and the candles out
   D.zone({
     id: 'dinner-party',
     box: [-6.8, 0.5, 1.0, -2.2, 4, 7.9],
     exclusive: true,
     onEnter: async () => {
       await K.wait(2.8);
-      party = 4;
       ctx.audio.moan(V(tx, 1.8, tz), { gain: 0.3, dur: 2.5 });
       const delay = ctx.sky.strike({ strength: 1.5, close: true });
       void delay;
@@ -846,8 +825,6 @@ function dining(ctx) {
       await K.wait(1.0);
       ctx.sky.strike({ strength: 1.1, bolt: false, close: true });
       await K.wait(1.6);
-      for (const g of diners) g.target = g.opacity = 0;
-      party = 0;
       ctx.audio.sting('glimpse');
       tableCandles.relight(0.15);
       await K.wait(1.0);
