@@ -17,7 +17,9 @@ this writes:
   it onto the vertical axis, and --turn spins it about that axis (degrees,
   anticlockwise seen from above) when it does not face +Z
 - keeps each part as its own mesh, under its node, mesh and material
-  names, which GHOST_ART's slot rules match
+  names, which GHOST_ART's slot rules match; --glow cuts the bright
+  triangles inside a box (a lantern's glass, a candle's flame) into a part
+  of their own named glow, which the game draws in its warm glow colour
 - stores the geometry quantised (KHR_mesh_quantization, which three.js
   reads without a decoder): positions int16, normals int8, UVs uint16
 - keeps each base colour texture as a greyscale JPEG at most --tex pixels
@@ -200,6 +202,50 @@ def fit(parts, height, turn, center):
     return tall, k
 
 
+def keep(p, tris):
+    """A copy of primitive p with only the triangles given, and their vertices."""
+    used, I = np.unique(tris.ravel(), return_inverse=True)
+    return {**p, 'P': p['P'][used], 'N': p['N'][used], 'T': None if p['T'] is None else p['T'][used], 'I': I.ravel()}
+
+
+def cut_glow(parts, box, least, greys):
+    """Move the triangles inside box (and at least this bright, where there
+    is a texture) into a part of their own named glow."""
+    lo, hi = np.array(box[:3]), np.array(box[3:])
+    glow = []
+    for part in parts:
+        prims = []
+        for p in part['prims']:
+            t = p['I'].reshape(-1, 3)
+            c = p['P'][t].mean(1)
+            sel = np.all((c >= lo) & (c <= hi), axis=1)
+            grey = greys.get(p['img']) if p['T'] is not None else None
+            if grey is not None:
+                H, W = grey.shape
+                uv = np.clip(p['T'][t].mean(1), 0, 1)
+                inbox = sel
+                sel = inbox & (grey[np.minimum((uv[:, 1] * H).astype(int), H - 1), np.minimum((uv[:, 0] * W).astype(int), W - 1)] >= least)
+                # a streak in the paint should not leave holes and spikes:
+                # each triangle follows most of its neighbours
+                _, weld = np.unique(np.round(p['P'] / 1e-4).astype(np.int64), axis=0, return_inverse=True)
+                wt = weld.ravel()[t]
+                for _ in range(3):
+                    on = np.zeros(weld.max() + 1)
+                    all_ = np.zeros(weld.max() + 1)
+                    np.add.at(on, wt.ravel(), np.repeat(sel, 3))
+                    np.add.at(all_, wt.ravel(), 1)
+                    sel = inbox & ((on / all_)[wt].mean(1) > 0.5)
+            if sel.any():
+                glow.append(keep(p, t[sel]))
+            if not sel.all():
+                prims.append(keep(p, t[~sel]) if sel.any() else p)
+        part['prims'] = prims
+    parts[:] = [part for part in parts if part['prims']]
+    if glow:
+        parts.append({'node': 'glow', 'mesh': 'glow', 'prims': glow})
+    return sum(len(p['I']) // 3 for p in glow)
+
+
 def pad(a, covered):
     """Fill the texels outside the islands from the island texels nearby (push-pull)."""
     c = a * covered
@@ -366,11 +412,32 @@ def main():
     ap.add_argument('--tex', type=int, default=1024, help='largest texture size in pixels; 0 drops textures')
     ap.add_argument('--quality', type=int, default=85, help='JPEG quality of the textures')
     ap.add_argument('--preview', help='also save the greyscale texture here, to look at')
+    ap.add_argument('--glow', help='x0,y0,z0,x1,y1,z1: a box in metres (after sizing) whose bright triangles become the part named glow; write --glow=-0.3,... when it starts with a minus')
+    ap.add_argument('--glow-min', type=float, default=0.5, help='how bright (0 to 1, in the base colour) a triangle in the box must be to glow')
     a = ap.parse_args()
 
     doc, blob = read_glb(a.src)
     parts = gather(doc, blob)
     tall, k = fit(parts, a.height, a.turn, a.center)
+
+    # the base colour images, read once
+    pics = {}
+    for img in sorted({p['img'] for part in parts for p in part['prims'] if p['img'] is not None}):
+        if 'bufferView' not in doc['images'][img]:
+            fail('the model keeps a texture in a separate file; export it as one .glb')
+        try:
+            pics[img] = Image.open(io.BytesIO(view(doc, blob, doc['images'][img]['bufferView'])[0]))
+            pics[img].load()
+        except Exception as e:  # e.g. KTX2, which Pillow cannot read
+            print(f'  texture {img} left out: {e}')
+
+    if a.glow:
+        box = [float(v) for v in a.glow.split(',')]
+        if len(box) != 6:
+            fail('--glow takes six numbers: x0,y0,z0,x1,y1,z1')
+        greys = {img: np.asarray(pic.convert('L'), dtype=np.float32) / 255 for img, pic in pics.items()}
+        if not cut_glow(parts, box, a.glow_min, greys):
+            fail('nothing bright enough to glow inside that box')
 
     # one greyscale texture per base colour image, padded over all its users
     shades, jpegs = {}, []
@@ -378,18 +445,10 @@ def main():
         users = {}
         for part in parts:
             for p in part['prims']:
-                if p['img'] is not None:
+                if p['img'] in pics:
                     users.setdefault(p['img'], []).append((p['T'], p['I']))
         for img, uvs in users.items():
-            if 'bufferView' not in doc['images'][img]:
-                fail('the model keeps a texture in a separate file; export it as one .glb')
-            try:
-                pic = Image.open(io.BytesIO(view(doc, blob, doc['images'][img]['bufferView'])[0]))
-                pic.load()
-            except Exception as e:  # e.g. KTX2, which Pillow cannot read
-                print(f'  texture {img} left out: {e}')
-                continue
-            jpg, shown = shade_texture(pic, uvs, a.tex, a.quality)
+            jpg, shown = shade_texture(pics[img], uvs, a.tex, a.quality)
             shades[img] = len(jpegs)
             jpegs.append(jpg)
             if a.preview:

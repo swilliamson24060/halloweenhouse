@@ -29,7 +29,7 @@ export const CAST = {
     facialHair: 'moustache',
     pose: 'lantern',
     face: { age: 48, stubble: 1, expr: { fear: 0.55 } },
-    look: { color: 0xd6cbb0 },
+    look: { color: 0xd6cbb0, glowColor: 0xffb060 },
   },
   margaret: {
     name: 'Margaret Ashgrove, in mourning',

@@ -227,9 +227,13 @@ const GHOST_ART = {
   walter: {
     src: 'art/ghosts/walter.glb',
     height: 1.74,
-    // the caretaker in flat cap and waistcoat, lantern held out, eyes wide
+    // the caretaker in flat cap and waistcoat, lantern held out, eyes wide;
+    // the lantern's glass burns warm
     shade: true,
-    slots: [[/./, 'body']],
+    slots: [
+      [/glow/i, 'glow'],
+      [/./, 'body'],
+    ],
   },
 };
 
