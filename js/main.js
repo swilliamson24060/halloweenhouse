@@ -6,11 +6,10 @@ const $ = (id) => document.getElementById(id);
 
 // A button that tells you where the apparitions you have not seen yet are
 // waiting, one per press, nearest first: distance across the ground plus
-// 8 m for each floor between you (a hillside is not a floor). The two at
-// windows can be seen from their own floor or from the lawn, whichever is
-// nearer. Returns a reset, called whenever the panel holding it opens.
+// 8 m for each floor between you (a hillside is not a floor), since each
+// has to be walked up to. Returns a reset, called whenever the panel
+// holding it opens.
 const LEVEL = { cellar: -1, ground: 0, second: 1, attic: 2, deck: 3 };
-const FROM_LAWN = new Set(['window', 'attic']);
 
 function hinter(game, textEl, btn, first) {
   let order = [];
@@ -38,7 +37,7 @@ function hinter(game, textEl, btn, first) {
       const q = a.ghost.position;
       const room = ctx.rooms.at(q.clone().setY(q.y + 1));
       const level = LEVEL[room ? room.floor : 'ground'] ?? 0;
-      const floors = Math.min(Math.abs(level - here), FROM_LAWN.has(a.id) ? Math.abs(here) : Infinity);
+      const floors = Math.abs(level - here);
       return Math.hypot(q.x - p.x, q.z - p.z) + 8 * floors;
     };
     order = ctx.apparitions.list.filter((a) => !a.seen).sort((x, y) => far(x) - far(y));

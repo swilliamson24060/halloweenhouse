@@ -492,19 +492,16 @@ export class Ghost {
   }
 }
 
-// Hidden ghosts that count toward the "apparitions witnessed" tally when the
-// player looks straight at one. Counted or not, each lingers where it stands
-// until the player comes right up to it; then it is gone for good.
+// Hidden ghosts that count toward the "apparitions witnessed" tally. A
+// glimpse is not enough, through a window or across a room: each lingers
+// where it stands until the player dares to walk right up to it, and only
+// then is it counted, and gone.
 export class Apparitions {
   constructor(ctx) {
     this.ctx = ctx;
     this.list = [];
     this._c = new THREE.Vector3();
-    this._f = new THREE.Vector3();
-    this._d = new THREE.Vector3();
-    this._h = new THREE.Vector3();
-    this.check = 0;
-    ctx.updaters.push((dt) => this.update(dt));
+    ctx.updaters.push(() => this.update());
   }
 
   add(o) {
@@ -514,10 +511,8 @@ export class Apparitions {
       id: o.id,
       ghost: g,
       seen: false,
-      gone: false,
-      gaze: 0,
       maxDist: o.maxDist ?? 14,
-      // come within this (about two feet) and it is gone
+      // walk within this of it (about two feet) to count it
       near: o.near ?? 0.6,
       opacity: o.opacity ?? 0.6,
       when: o.when,
@@ -529,66 +524,34 @@ export class Apparitions {
     return a;
   }
 
-  update(dt) {
-    const ctx = this.ctx;
-    const cam = ctx.camera.position;
-    const fwd = ctx.camera.getWorldDirection(this._f);
+  update() {
+    const cam = this.ctx.camera.position;
     for (const a of this.list) {
-      if (a.gone) continue;
+      if (a.seen) continue;
       const g = a.ghost;
       const c = g.center(this._c);
-      const dist = c.distanceTo(cam);
-      const allowed = !a.when || a.when();
-      const shouldShow = allowed && dist < a.maxDist + 6;
-      if (shouldShow && !a.active) {
-        a.active = true;
-        g.show(a.opacity, 0.6);
-      } else if (!shouldShow && a.active) {
-        a.active = false;
-        g.hide(1);
-      }
-      if (!a.active) {
-        a.gaze = 0;
-        continue;
+      const show = (!a.when || a.when()) && c.distanceTo(cam) < a.maxDist + 6;
+      if (show !== a.active) {
+        a.active = show;
+        if (show) g.show(a.opacity, 0.6);
+        else g.hide(1);
       }
       const p = g.position;
-      if (Math.hypot(p.x - cam.x, p.z - cam.z) < a.near && Math.abs(c.y - cam.y) < 1.5) {
-        // right up to it: nobody comes that close without seeing it
-        if (a.seen) ctx.audio.whisper(c, { gain: 0.5 });
-        else this.witness(a);
-        a.gone = true;
-        a.active = false;
-        g.vanish(2.5);
-        continue;
-      }
-      if (a.seen || dist > a.maxDist) {
-        a.gaze = 0;
-        continue;
-      }
-      const d = this._d.subVectors(c, cam).divideScalar(dist);
-      const cos = d.dot(fwd);
-      const cone = Math.max(0.94, 0.985 - 0.06 / Math.max(dist, 1));
-      const looking = cos > cone;
-      if (looking) {
-        // a figure at a window shows only its head above the sill
-        const head = this._h.copy(g.position).setY(g.position.y + g.height * 0.92);
-        const clear = !ctx.col.segmentBlocked(cam.x, cam.y, cam.z, c.x, c.y, c.z) || !ctx.col.segmentBlocked(cam.x, cam.y, cam.z, head.x, head.y, head.z);
-        if (clear) a.gaze += dt;
-        else a.gaze = 0;
-      } else a.gaze = Math.max(0, a.gaze - dt * 2);
-      if (a.gaze > 0.35) this.witness(a);
+      if (a.active && Math.hypot(p.x - cam.x, p.z - cam.z) < a.near && Math.abs(c.y - cam.y) < 1.5) this.witness(a);
     }
   }
 
   witness(a) {
     const ctx = this.ctx;
     a.seen = true;
+    a.active = false;
     const A = ctx.apparitions;
     A.seen++;
     ctx.hud.setCounter(A.seen, A.total);
     ctx.audio.sting('glimpse', a.ghost.center());
     ctx.director.addFear(0.2);
     ctx.flashlight.flicker(0.8);
+    a.ghost.vanish(2.5);
     const n = A.seen;
     const lines = ['Did you see it too?', 'It was looking at you.', 'It was not there a moment ago.', 'You are not alone in here.'];
     ctx.hud.toast(n === A.total ? 'You have seen them all. They have seen you.' : lines[n % lines.length]);

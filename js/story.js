@@ -87,15 +87,15 @@ export const HINTS = {
   library: ['The Library', 'His wife, Constance, reads in the far back corner, behind the desk and beside the tall shelves.'],
   dining: ['The Dining Room', 'The butler waits with his tray at the head of the long table, by the front window.'],
   kitchen: ['The Kitchen', 'The scullery maid stands with her bucket in the far corner, past the stove, by the barrels.'],
-  gallery: ['The Upper Landing', 'The housekeeper watches over the stairwell with her candle. At the top of the stairs, turn round and look back toward the front of the house.'],
+  gallery: ['The Upper Landing', 'The housekeeper watches over the stairwell with her candle. At the top of the stairs, turn round and go back toward the front of the house.'],
   'hall-child': ['The Upper Landing', 'A boy with a toy boat waits at the far end of the upstairs hall, at the back of the house.'],
-  window: ['The Nursery Window', 'A little girl with her doll stands at the nursery window, upstairs at the front of the left-hand wing. Look up at it from the front lawn, or come up behind her in the nursery.'],
+  window: ['The Nursery Window', 'A little girl with her doll stands at the nursery window, upstairs at the front of the left-hand wing. The front lawn shows her, but you have to go up to the nursery and come right up behind her.'],
   master: ['The Master Bedroom', 'Nurse Ada stands with her basin by the round bay of the turret, upstairs at the front of the house.'],
   sewing: ['The Sewing Room', 'Miss Finch the dressmaker stands among her dress forms upstairs, her scissors in her hand.'],
-  attic: ['The Attic Window', 'A very tall woman stands at the arched window high in the front gable, above the nursery. Look up at it from the front walk, or find her from inside the attic, beyond the rocking chair.'],
+  attic: ['The Attic Window', 'A very tall woman stands at the arched window high in the front gable, above the nursery. The front walk shows her, but you have to climb to the attic and go to her, past the rocking chair.'],
   cellar: ['The Cellar', 'The old caretaker holds up his lantern in the middle of the cellar, near the gate of the wine cellar. The stairs go down from the kitchen, and the storm doors on the right-hand side of the house lead down too.'],
   mourner: ['The Graveyard', 'A woman in mourning weeps among the gravestones to the right of the house, her face in her hands, turned toward the house.'],
   garden: ['The Garden on the Hill', 'The groundskeeper leans on his spade under the highest arbour. Follow the stepping stones up the hill behind the left-hand side of the house.'],
 };
 
-export const HINT_TIP = 'Look straight at one and it counts. It lingers where it stands until you come right up to it.';
+export const HINT_TIP = 'A glimpse does not count, not even through a window. Walk right up to one, close enough to touch, if you dare.';
