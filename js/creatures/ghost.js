@@ -251,6 +251,14 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  ezra: {
+    src: 'art/ghosts/ezra_ravenmoor_ghost.glb',
+    height: 1.7,
+    // the old captain, bald and white-whiskered, stooped in his frock coat
+    // over the cane he leans on with both hands
+    shade: true,
+    slots: [[/./, 'body']],
+  },
 };
 
 // Fetching starts as loading begins; models that have arrived by the
