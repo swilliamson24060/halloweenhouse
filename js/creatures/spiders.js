@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import { damp } from '../core/util.js';
+import { fetchSpider, walking } from './spider_model.js';
 
-// Instanced spiders that walk on floors, walls and ceilings with an
-// alternating eight-leg gait, scatter from the torch, and big ones that
-// drop on a thread from the ceiling.
+// Spiders that walk on floors, walls and ceilings with an alternating
+// eight-leg gait, scatter from the torch, and big ones that drop on a thread
+// from the ceiling. They are drawn from the spider model (spider_model.js),
+// all in one instanced draw. None are drawn until it arrives; only if it
+// cannot be had at all do built ones, spheres and sticks, stand in.
 
 const LEGS = 8;
 const SEGS = LEGS * 2;
@@ -19,26 +22,19 @@ const _r = new THREE.Vector3();
 const _n = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 const HIP_Z = [0.32, 0.14, -0.04, -0.2];
+const VIEW = new THREE.Frustum();
+const VIEW_M = new THREE.Matrix4();
+const BOUNDS = new THREE.Sphere();
 
 export class Spiders {
   constructor(ctx, max = 90) {
     this.ctx = ctx;
     this.max = max;
-    const mat = new THREE.MeshStandardMaterial({ color: 0x1b1511, roughness: 0.45, metalness: 0.1 });
-    const sphere = new THREE.SphereGeometry(1, 10, 8);
-    const leg = new THREE.CylinderGeometry(1, 0.7, 1, 5, 1, true);
-    leg.translate(0, 0.5, 0);
-    this.abd = new THREE.InstancedMesh(sphere, mat, max);
-    this.head = new THREE.InstancedMesh(sphere, mat, max);
-    this.legs = new THREE.InstancedMesh(leg, mat, max * SEGS);
-    for (const m of [this.abd, this.head, this.legs]) {
-      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      m.count = 0;
-      m.frustumCulled = false;
-      m.castShadow = true;
-      ctx.scene.add(m);
-    }
     this.list = [];
+    this.mesh = null; // the model's spiders, once it arrives
+    this.built = null; // the stand-ins, if it never does
+    // where a hanging spider's thread joins it, in its own space
+    this.tail = { y: 0, z: -0.4 };
     // silk threads for hanging spiders
     this.silkPos = new Float32Array(max * 6);
     const sg = new THREE.BufferGeometry();
@@ -49,6 +45,50 @@ export class Spiders {
     ctx.scene.add(this.silk);
     this.hanging = [];
     ctx.updaters.push((dt, t) => this.update(dt, t));
+    fetchSpider().then((model) => (model ? this._dress(model) : this._build()));
+  }
+
+  _dress(model) {
+    this.gait = new THREE.InstancedBufferAttribute(new Float32Array(this.max * 2), 2);
+    this.gait.setUsage(THREE.DynamicDrawUsage);
+    model.geo.setAttribute('gait', this.gait);
+    const mat = walking(new THREE.MeshStandardMaterial({ map: model.map, roughness: 0.42, metalness: 0.08 }));
+    const mesh = new THREE.InstancedMesh(model.geo, mat, this.max);
+    mesh.customDepthMaterial = walking(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }));
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    // only the spiders near the player and in view are packed in, each frame
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+    mesh.castShadow = true;
+    this.ctx.scene.add(mesh);
+    this.mesh = mesh;
+    this.tail = model.tail;
+  }
+
+  _build() {
+    const mat = new THREE.MeshStandardMaterial({ color: 0x1b1511, roughness: 0.45, metalness: 0.1 });
+    const sphere = new THREE.SphereGeometry(1, 10, 8);
+    const leg = new THREE.CylinderGeometry(1, 0.7, 1, 5, 1, true);
+    leg.translate(0, 0.5, 0);
+    this.built = {
+      abd: new THREE.InstancedMesh(sphere, mat, this.max),
+      head: new THREE.InstancedMesh(sphere, mat, this.max),
+      legs: new THREE.InstancedMesh(leg, mat, this.max * SEGS),
+    };
+    for (const m of Object.values(this.built)) {
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      m.frustumCulled = false;
+      m.castShadow = true;
+      this.ctx.scene.add(m);
+    }
+    this._count();
+    for (const sp of this.list) this._pose(sp, 0, 0);
+  }
+
+  _count() {
+    const b = this.built;
+    b.abd.count = b.head.count = this.list.length;
+    b.legs.count = this.list.length * SEGS;
   }
 
   // surface: { o:[x,y,z], u:[...], v:[...], w, h }  (u,v unit vectors in-plane)
@@ -74,6 +114,8 @@ export class Spiders {
       state: o.still ? 'still' : 'pause',
       timer: Math.random() * 3,
       phase: Math.random() * 10,
+      step: Math.random() * 10,
+      stride: 0,
       ta: 0,
       tb: 0,
       idx: this.list.length,
@@ -82,9 +124,10 @@ export class Spiders {
     };
     sp.max = (o.speed ?? 0.12) * (0.6 + sp.size * 12);
     this.list.push(sp);
-    this.abd.count = this.head.count = this.list.length;
-    this.legs.count = this.list.length * SEGS;
-    this._pose(sp, 0, 0);
+    if (this.built) {
+      this._count();
+      this._pose(sp, 0, 0);
+    }
     return sp;
   }
 
@@ -129,36 +172,41 @@ export class Spiders {
     return out.copy(s.o).addScaledVector(s.u, sp.a).addScaledVector(s.v, sp.b);
   }
 
-  _pose(sp, t, moving) {
-    const s = sp.size;
-    let base;
+  // Where the spider stands (_p) and how it is turned (_q), as a basis of
+  // x = right, y = off the surface, z = forward. A hanging one hangs head
+  // down with its back to +z, its tail under the end of its thread.
+  _frame(sp, t) {
     if (sp.hang) {
       const h = sp.hang;
       const sw = Math.sin(t * 1.3 + h.sway) * 0.02 * Math.min(1, h.len);
-      base = _p.set(h.x + sw, h.yTop - h.len, h.z);
-      // hanging head-down, back turned toward +z
+      _p.set(h.x + sw, h.yTop - h.len, h.z - this.tail.y * sp.size);
       _f.set(0, -1, 0);
       _n.set(0, 0, 1);
-      _r.crossVectors(_n, _f);
     } else {
-      base = this._world(sp, _p);
-      const surf = sp.surf;
+      this._world(sp, _p);
       const c = Math.cos(sp.heading);
       const si = Math.sin(sp.heading);
-      _f.copy(surf.u).multiplyScalar(c).addScaledVector(surf.v, si);
-      _n.copy(surf.n);
-      _r.crossVectors(_n, _f).normalize();
+      _f.copy(sp.surf.u).multiplyScalar(c).addScaledVector(sp.surf.v, si);
+      _n.copy(sp.surf.n);
     }
-    // basis: x = right, y = normal, z = forward
+    _r.crossVectors(_n, _f).normalize();
     _m.makeBasis(_r, _n, _f);
     _q.setFromRotationMatrix(_m);
+  }
+
+  // a built stand-in, of spheres and sticks
+  _pose(sp, t, moving) {
+    const s = sp.size;
+    this._frame(sp, t);
+    const base = _p;
+    const b = this.built;
     const L = (x, y, z, out) => out.set(x * s, y * s, z * s).applyQuaternion(_q).add(base);
     const set = (mesh, i, pos, sx, sy, sz) => {
       _m.compose(pos, _q, _s.set(sx, sy, sz));
       mesh.setMatrixAt(i, _m);
     };
-    set(this.abd, sp.idx, L(0, 0.45, -0.55, _a), s * 0.48, s * 0.4, s * 0.62);
-    set(this.head, sp.idx, L(0, 0.38, 0.16, _a), s * 0.32, s * 0.25, s * 0.36);
+    set(b.abd, sp.idx, L(0, 0.45, -0.55, _a), s * 0.48, s * 0.4, s * 0.62);
+    set(b.head, sp.idx, L(0, 0.38, 0.16, _a), s * 0.32, s * 0.25, s * 0.36);
     const qBody = _q.clone();
     let li = sp.idx * SEGS;
     for (let side = -1; side <= 1; side += 2) {
@@ -185,7 +233,7 @@ export class Spiders {
     _k.divideScalar(len || 1);
     const q = new THREE.Quaternion().setFromUnitVectors(UP, _k);
     _m.compose(a, q, _s.set(r, len, r));
-    this.legs.setMatrixAt(i, _m);
+    this.built.legs.setMatrixAt(i, _m);
   }
 
   update(dt, t) {
@@ -194,9 +242,9 @@ export class Spiders {
     const fl = ctx.flashlight;
     let silkN = 0;
     let dirty = false;
+    let drawn = 0;
+    VIEW.setFromProjectionMatrix(VIEW_M.multiplyMatrices(ctx.camera.projectionMatrix, ctx.camera.matrixWorldInverse));
     for (const sp of this.list) {
-      const wp = sp.hang ? _b.set(sp.hang.x, sp.hang.yTop - sp.hang.len, sp.hang.z) : this._world(sp, _b);
-      const dist = wp.distanceTo(cam);
       if (sp.hang) {
         const h = sp.hang;
         if (h.speed > 0) {
@@ -204,9 +252,14 @@ export class Spiders {
           h.len += Math.sign(d) * Math.min(Math.abs(d), h.speed * dt);
           if (Math.abs(d) < 1e-3) h.speed = 0;
         }
-        this.silkPos.set([h.x, h.yTop, h.z, h.x, h.yTop - h.len + sp.size * 0.4, h.z], silkN * 6);
+        // the thread runs down from the ceiling to its tail
+        this._frame(sp, t);
+        _k.set(0, this.tail.y * sp.size, this.tail.z * sp.size).applyQuaternion(_q).add(_p);
+        this.silkPos.set([h.x, h.yTop, h.z, _k.x, _k.y, _k.z], silkN * 6);
         silkN++;
       }
+      const wp = sp.hang ? _b.copy(_p) : this._world(sp, _b);
+      const dist = wp.distanceTo(cam);
       if (dist > 16 || Math.abs(wp.y - cam.y) > 4.5) continue;
       dirty = true;
       let moving = 0;
@@ -255,12 +308,40 @@ export class Spiders {
           }
         }
       }
-      this._pose(sp, t, moving);
+      if (sp.hang) {
+        // a hanging spider paws at the air, wildly as it drops
+        const busy = sp.hang.speed > 0 ? 1 : 0.3;
+        sp.stride = damp(sp.stride, busy, 4, dt);
+        sp.step += dt * (2 + busy * 8);
+      } else {
+        // strides that keep pace with the ground it covers
+        sp.stride = damp(sp.stride, moving, 10, dt);
+        sp.step += dt * Math.min(28, (moving * sp.speed * 4.4) / sp.size);
+      }
+      if (this.mesh) {
+        if (!sp.hang) this._frame(sp, t);
+        // only those in view, with room for a frame's turn of the head
+        BOUNDS.center.copy(_p);
+        BOUNDS.radius = sp.size * 1.5 + 0.3;
+        if (VIEW.intersectsSphere(BOUNDS)) {
+          _m.compose(_p, _q, _s.setScalar(sp.size));
+          this.mesh.setMatrixAt(drawn, _m);
+          this.gait.setXY(drawn, sp.step, sp.stride);
+          drawn++;
+        }
+      } else if (this.built) {
+        this._pose(sp, t, moving);
+      }
     }
-    if (dirty) {
-      this.abd.instanceMatrix.needsUpdate = true;
-      this.head.instanceMatrix.needsUpdate = true;
-      this.legs.instanceMatrix.needsUpdate = true;
+    if (this.mesh) {
+      this.mesh.count = drawn;
+      this.mesh.instanceMatrix.needsUpdate = true;
+      this.gait.needsUpdate = true;
+    }
+    if (this.built && dirty) {
+      this.built.abd.instanceMatrix.needsUpdate = true;
+      this.built.head.instanceMatrix.needsUpdate = true;
+      this.built.legs.instanceMatrix.needsUpdate = true;
     }
     this.silk.geometry.setDrawRange(0, silkN * 2);
     this.silk.geometry.attributes.position.needsUpdate = true;

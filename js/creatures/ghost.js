@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { damp } from '../core/util.js';
+import { floats, patiently } from '../core/models.js';
 import { NOISE_GLSL } from '../gfx/effects.js';
 import { buildFigure, SLOTS } from './figure.js';
 import { CAST } from './cast.js';
@@ -369,22 +370,15 @@ const WAITING = new Map();
 // figure in its place.
 export function fetchGhostArt(timeout = 8000) {
   const loader = new GLTFLoader();
-  const jobs = Object.entries(GHOST_ART).map(([who, art]) => fetchModel(loader, who, art, 0));
+  const jobs = Object.entries(GHOST_ART).map(([who, art]) => fetchModel(loader, who, art));
   return Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, timeout))]).then(() => ({ ...ARRIVED }));
 }
 
-// One model (or picture), tried again after 2, 4, 8, 16 and 32 seconds if
-// the connection drops it.
-function fetchModel(loader, who, art, tries) {
-  const load = art.picture ? new THREE.TextureLoader().loadAsync(art.picture) : loader.loadAsync(art.src);
-  return load
-    .then(
-      (got) => arrive(who, art.picture ? figureFromPicture(got, art) : figureFromModel(got.scene, art)),
-      () => {
-        if (tries >= 5) return arrive(who, null);
-        return new Promise((r) => setTimeout(r, 2000 * 2 ** tries)).then(() => fetchModel(loader, who, art, tries + 1));
-      }
-    )
+// One model (or picture), tried again if the connection drops it.
+function fetchModel(loader, who, art) {
+  const load = () => (art.picture ? new THREE.TextureLoader().loadAsync(art.picture) : loader.loadAsync(art.src));
+  return patiently(load)
+    .then((got) => arrive(who, got && (art.picture ? figureFromPicture(got, art) : figureFromModel(got.scene, art))))
     .catch(() => arrive(who, null));
 }
 
@@ -440,15 +434,6 @@ function figureFromModel(scene, art) {
     geo[slot].computeBoundingSphere();
   }
   return { geo, shade, height: art.height };
-}
-
-// A plain float copy of an attribute, so models stored compactly (quantised
-// or interleaved) can be moved and merged like any other.
-function floats(attr) {
-  const n = attr.itemSize;
-  const a = new Float32Array(attr.count * n);
-  for (let i = 0; i < attr.count; i++) for (let k = 0; k < n; k++) a[i * n + k] = attr.getComponent(i, k);
-  return new THREE.BufferAttribute(a, n);
 }
 
 // Faces and figures are shared by every instance of the same person.
