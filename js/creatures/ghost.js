@@ -320,6 +320,14 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  vey: {
+    src: 'art/ghosts/madame_vey_ghost.glb',
+    height: 1.62,
+    // the medium in her turban, fringed shawl and beads, her crystal ball
+    // held in both hands
+    shade: true,
+    slots: [[/./, 'body']],
+  },
   josiah: {
     // the drowned captain is only ever seen in the bedroom mirror, so a
     // picture will do: it always turns to face the glass. It stands from
