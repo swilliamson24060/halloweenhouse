@@ -328,6 +328,14 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  lucy: {
+    src: 'art/ghosts/lucy_ashgrove_ghost.glb',
+    height: 1.62,
+    // the bride in her high-necked gown, her bouquet and ribbons in her
+    // hands and her train spread behind her
+    shade: true,
+    slots: [[/./, 'body']],
+  },
   josiah: {
     // the drowned captain is only ever seen in the bedroom mirror, so a
     // picture will do: it always turns to face the glass. It stands from
