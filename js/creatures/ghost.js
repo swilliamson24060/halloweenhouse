@@ -336,6 +336,14 @@ const GHOST_ART = {
     shade: true,
     slots: [[/./, 'body']],
   },
+  martha: {
+    src: 'art/ghosts/martha_quill_ghost.glb',
+    height: 1.66,
+    // the nursemaid in a fury, hair streaming, lunging with both clawed
+    // hands out to seize you
+    shade: true,
+    slots: [[/./, 'body']],
+  },
   josiah: {
     // the drowned captain is only ever seen in the bedroom mirror, so a
     // picture will do: it always turns to face the glass. It stands from
