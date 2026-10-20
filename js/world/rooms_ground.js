@@ -357,7 +357,8 @@ function parlor(ctx) {
   // piano against the back wall
   const sconces = P.at(B, 5.25, GF, 0.42, 0, () => P.piano(B));
   ctx.col.addBox(4.45, GF, 0.07, 6.05, GF + 1.35, 0.78);
-  P.at(B, 5.25, GF, 1.02, 0, () => {
+  // the stool, along the keyboard from the end of the sofa
+  P.at(B, 5.45, GF, 1.02, 0, () => {
     B.cyl('uphRed', 0, 0.48, 0, 0.2, 0.2, 0.08, 14);
     B.cyl('woodDark', 0, 0.24, 0, 0.06, 0.1, 0.44, 8);
   });
@@ -365,8 +366,6 @@ function parlor(ctx) {
   // seating around the hearth
   P.at(B, 4.75, GF, 1.95, Math.PI / 2, () => P.sofa(B, { w: 1.9 }));
   ctx.col.addBox(4.3, GF, 0.95, 5.2, GF + 0.95, 2.95);
-  P.at(B, 5.75, GF, 0.7, 0.35, () => P.armchair(B));
-  ctx.col.addCircle(5.75, 0.7, 0.42, GF, GF + 1.2);
   // set back far enough to leave a way in to the hearth
   P.at(B, 5.5, GF, 3.65, Math.PI - 0.5, () => P.armchair(B, { mat: 'uphGreen' }));
   ctx.col.addCircle(5.5, 3.65, 0.42, GF, GF + 1.2);
@@ -395,11 +394,14 @@ function parlor(ctx) {
     );
   });
   ctx.col.addBox(5.2, GF, 1.5, 5.7, GF + 0.5, 2.4);
-  // lamp in the corner by the foyer
+  // lamp in the corner by the foyer, and a reading chair beside it turned
+  // to the fire
   P.at(B, 2.6, GF, 5.35, 0, () => P.table(B, { w: 0.5, d: 0.5, h: 0.72 }));
   ctx.col.addBox(2.3, GF, 5.05, 2.9, GF + 0.75, 5.65);
   const lamp = P.at(B, 2.6, GF + 0.72, 5.35, 0, () => P.oilLamp(B));
   K.candles([lamp], 'parlor', { intensity: 2.4, distance: 6, scale: 0.035 });
+  P.at(B, 3.7, GF, 5.1, 2.36, () => P.armchair(B));
+  ctx.col.addCircle(3.7, 5.1, 0.42, GF, GF + 1.2);
   // turret alcove: birdcage and the rocking chair
   P.at(B, 6.35, GF, 7.2, 0, () => P.birdcage(B));
   ctx.col.addCircle(6.35, 7.2, 0.22, GF, GF + 1.8);
