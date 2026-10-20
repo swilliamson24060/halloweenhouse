@@ -48,6 +48,12 @@ function hinter(game, textEl, btn, first) {
   };
 }
 
+// a toggle button's look and its state for screen readers
+function setOn(el, on) {
+  el.classList.toggle('on', on);
+  el.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
 function loadSettings() {
   try {
     return JSON.parse(localStorage.getItem('ravenmoor-settings') || '{}');
@@ -146,6 +152,21 @@ async function boot() {
     console.error(err);
     return;
   }
+
+  // Sound on or off: M, the Sound button in the corner (for a mouse, on
+  // every screen) or the one in the touch controls
+  const sound = $('sound');
+  sound.addEventListener('click', (e) => {
+    game.mute(!game.ctx.audio.muted);
+    // clicked, not keyed: let go of it, or Enter in the house would press it again
+    if (e.detail) sound.blur();
+  });
+  game.onMute = (muted) => {
+    setOn(sound, !muted);
+    sound.firstChild.textContent = muted ? 'Muted' : 'Sound';
+    setOn($('t-mute'), !muted);
+    $('t-mute').textContent = muted ? 'Muted' : 'Sound';
+  };
   try {
     await game.load((p, msg) => {
       bar.style.width = `${Math.round(p * 100)}%`;
@@ -265,10 +286,6 @@ async function boot() {
       stick.style.top = `${y}px`;
       knob.style.transform = `translate(${dx}px, ${dy}px)`;
     };
-    const setOn = (el, on) => {
-      el.classList.toggle('on', on);
-      el.setAttribute('aria-pressed', on ? 'true' : 'false');
-    };
     // a brief flash confirms the press (iOS ignores :active here)
     const flash = (b) => {
       b.classList.add('pressed');
@@ -296,11 +313,6 @@ async function boot() {
     });
     $('t-menu').addEventListener('click', () => game.pause());
     game.onFlashlight = (on) => setOn($('t-light'), on);
-    game.onMute = (muted) => {
-      const b = $('t-mute');
-      setOn(b, !muted);
-      b.textContent = muted ? 'Muted' : 'Sound';
-    };
   }
 }
 

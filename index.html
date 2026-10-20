@@ -310,8 +310,26 @@ button.small { font-size: 0.82rem; padding: 7px 16px; }
   .paper { font-size: 1.02rem; padding: 18px 24px; }
 }
 
+/* ---------- the Sound button, for a mouse ---------- */
+/* over every screen, so it can be clicked whenever the pointer is free; in
+   the house the pointer is captured, and M does the same */
+#sound {
+  position: fixed; left: calc(14px + var(--safe-l)); top: calc(12px + var(--safe-t));
+  height: 34px; padding: 0 10px 0 12px; font-size: 0.76rem; letter-spacing: 0.1em;
+  color: var(--bone); background: rgba(18,16,20,0.5); border: 1px solid rgba(216,207,188,0.35);
+  transition: opacity 0.6s, background 0.2s, color 0.2s;
+}
+#sound.on { background: rgba(176,145,90,0.5); }
+#sound kbd { font-family: var(--display); font-size: 0.7rem; letter-spacing: 0; border: 1px solid currentColor; padding: 0 5px; margin-left: 8px; opacity: 0.8; }
+@media (hover: hover) {
+  #sound:hover { color: var(--ink); background: var(--brass); }
+}
+#sound:active { color: var(--ink); background: var(--brass); }
+/* gone while the screen fades to black */
+#fade.on ~ #sound { opacity: 0; pointer-events: none; }
+
 @media (prefers-reduced-motion: reduce) {
-  #caption, #toast, #fade, #ending, #prompt { transition: none; }
+  #caption, #toast, #fade, #ending, #prompt, #sound { transition: none; }
   #touch #t-use.ready { animation: none; }
 }
 </style>
@@ -369,6 +387,7 @@ button.small { font-size: 0.82rem; padding: 7px 16px; }
         <dt>E / Click</dt><dd>Open, read, use</dd>
         <dt>F</dt><dd>Lantern torch on or off</dd>
         <dt>C</dt><dd>Look straight ahead</dd>
+        <dt>M</dt><dd>Sound on or off</dd>
         <dt>Esc</dt><dd>Pause and settings</dd>
       </dl>
       <dl class="controls touch-only">
@@ -448,6 +467,8 @@ button.small { font-size: 0.82rem; padding: 7px 16px; }
     </div>
   </div>
 </div>
+
+<button id="sound" type="button" class="desk-only on" aria-pressed="true" title="Sound on or off (M)"><span>Sound</span><kbd>M</kbd></button>
 
 <script type="module" src="js/main.js"></script>
 </body>

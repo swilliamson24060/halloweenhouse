@@ -293,6 +293,13 @@ export class Game {
     if (this.onPause) this.onPause();
   }
 
+  // Sound off or on: the M key or a Sound button, paused or not.
+  mute(on) {
+    this.ctx.audio.setMuted(on);
+    if (this.state === 'playing') this.ctx.hud.toast(on ? 'Sound off' : 'Sound on', 1.5);
+    if (this.onMute) this.onMute(on);
+  }
+
   resume() {
     if (this.state !== 'paused' && this.state !== 'ending') return;
     this.state = 'playing';
@@ -312,6 +319,7 @@ export class Game {
       if (ctx.hud.noteOpen) ctx.hud.closeNote();
       else if (this.state === 'playing') this.pause();
     }
+    if (ctx.input.take('mute')) this.mute(!ctx.audio.muted);
     if (this.state === 'playing') this.step(dt);
     ctx.input.clearFrame();
     ctx.post.fear = ctx.director.fear * 0.8;
@@ -343,11 +351,6 @@ export class Game {
         ctx.audio.click(on);
         if (this.onFlashlight) this.onFlashlight(on);
       }
-    }
-    if (input.take('mute')) {
-      ctx.audio.setMuted(!ctx.audio.muted);
-      ctx.hud.toast(ctx.audio.muted ? 'Sound off' : 'Sound on', 1.5);
-      if (this.onMute) this.onMute(ctx.audio.muted);
     }
 
     player.update(dt);

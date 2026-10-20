@@ -22,7 +22,7 @@ Upload the whole folder (`index.html`, `manifest.webmanifest`, `icons/`, `art/` 
 - Mouse: look (click the page to capture the mouse).
 - E or click: open doors, read notes, use things.
 - C (or middle click): look straight ahead again, level with the floor.
-- F: torch on or off. M: sound on or off. Esc: pause and settings.
+- F: torch on or off. M: sound on or off, as does the Sound button at the top left whenever the mouse is free (on the title card, or paused). Esc: pause and settings.
 - Gamepads work too; click the right stick to look straight ahead.
 - Apparitions count only when you walk right up to one, close enough to touch; a glimpse, even through a window, is not enough. Each waits where it stands until you do.
 - Missed an apparition? The pause menu has a hint: each press tells you where one you have not seen yet is waiting, nearest first. The ending card offers the same if any are left.
