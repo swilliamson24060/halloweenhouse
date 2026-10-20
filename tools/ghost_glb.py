@@ -27,8 +27,11 @@ this writes:
   across (0 drops textures), or in colour with --colour, its UV islands
   padded out into the empty atlas so smaller mip levels do not bleed black
   into the seams
+- keeps a rigged model's bones and skin weights, for the game to pose
+  (the skeleton in the cellar's coffin); --tidy-rig mends an auto-rigged
+  one whose limbs touched in its rest pose
 - drops normal, metal/roughness, occlusion and emissive maps, tangents,
-  vertex colours, skins, morph targets and animations
+  vertex colours, morph targets and animations
 - with --tris, thins the model to about that many triangles, the texture
   still in place
 - with --legs, finds a creature's legs and records them for the game to
@@ -170,6 +173,10 @@ def gather(doc, blob):
         m = parent @ node_matrix(n)
         if 'mesh' in n:
             mesh = doc['meshes'][n['mesh']]
+            # a skinned mesh lies in its skin's bind space; its node's
+            # own transform does not apply
+            skinned = 'skin' in n
+            mm = np.eye(4) if skinned else m
             prims = []
             for p in mesh['primitives']:
                 if p.get('mode', 4) != 4:
@@ -182,17 +189,21 @@ def gather(doc, blob):
                 N = accessor(doc, blob, at['NORMAL']) if 'NORMAL' in at else None
                 uv = f'TEXCOORD_{uvset}'
                 T = accessor(doc, blob, at[uv]) if img is not None and uv in at else None
-                P = P @ m[:3, :3].T + m[:3, 3]
-                N = unit_normals(P, I) if N is None else unit(N @ np.linalg.inv(m[:3, :3]), unit_normals(P, I))
+                P = P @ mm[:3, :3].T + mm[:3, 3]
+                N = unit_normals(P, I) if N is None else unit(N @ np.linalg.inv(mm[:3, :3]), unit_normals(P, I))
                 # only the vertices the triangles use
                 used, I = np.unique(I, return_inverse=True)
-                prims.append({
+                prim = {
                     'P': P[used], 'N': N[used], 'T': None if T is None else T[used], 'I': I.ravel(),
                     'img': None if T is None else img,
                     'mat': mat.get('name'), 'double': mat.get('doubleSided', False),
-                })
+                }
+                if skinned and 'JOINTS_0' in at and 'WEIGHTS_0' in at:
+                    prim['J'] = accessor(doc, blob, at['JOINTS_0'])[used].astype(np.int64)
+                    prim['Wt'] = accessor(doc, blob, at['WEIGHTS_0'])[used]
+                prims.append(prim)
             if prims:
-                parts.append({'node': n.get('name'), 'mesh': mesh.get('name'), 'prims': prims})
+                parts.append({'node': n.get('name'), 'mesh': mesh.get('name'), 'prims': prims, 'skinned': skinned})
         for c in n.get('children', []):
             walk(c, m)
 
@@ -206,6 +217,150 @@ def gather(doc, blob):
     if not parts:
         fail('the model has no triangle meshes')
     return parts
+
+
+def rig_of(doc, blob):
+    """The model's skin, if it has one: its joints, their inverse bind
+    matrices, and the nodes from the scene's roots down to the joints."""
+    skins = doc.get('skins', [])
+    if not skins:
+        return None
+    if len(skins) > 1:
+        fail('the model has more than one skin; export it with one')
+    s = skins[0]
+    joints = s['joints']
+    if 'inverseBindMatrices' in s:
+        ibm = accessor(doc, blob, s['inverseBindMatrices']).reshape(-1, 4, 4).transpose(0, 2, 1)
+    else:
+        ibm = np.tile(np.eye(4), (len(joints), 1, 1))
+    parent = {c: i for i, n in enumerate(doc['nodes']) for c in n.get('children', [])}
+    keep = set()
+    for j in joints:
+        while j is not None and j not in keep:
+            keep.add(j)
+            j = parent.get(j)
+    return {'nodes': doc['nodes'], 'joints': joints, 'ibm': ibm, 'keep': keep, 'parent': parent}
+
+
+def tidy_rig(parts, rig):
+    """Undo what auto-rigging does to limbs that touch in the rest pose
+    (hands hanging against the thighs). Skin given to a bone it lies far
+    from, for that bone (thigh skin given to the fingers), goes to the bone
+    it lies against; each vertex then follows only its main bone and the
+    bones joined to it; and skin stretched between two limbs (a finger and
+    a thigh) is cut, or it would draw out into long strips the moment one
+    of them moves. Returns how many vertices moved and triangles were cut."""
+    nodes, joints, parent = rig['nodes'], rig['joints'], rig['parent']
+    n = len(joints)
+    index = {node: i for i, node in enumerate(joints)}
+    up = np.array([index.get(parent.get(node), -1) for node in joints])
+    hops = np.full((n, n), n)
+    np.fill_diagonal(hops, 0)
+    for i in range(n):
+        if up[i] >= 0:
+            hops[i, up[i]] = hops[up[i], i] = 1
+    for k in range(n):
+        hops = np.minimum(hops, hops[:, k:k + 1] + hops[k:k + 1, :])
+    # anc[a, b]: a is b or one of its ancestors
+    anc = np.eye(n, dtype=bool)
+    depth = np.zeros(n, int)
+    for b in range(n):
+        a = up[b]
+        while a >= 0:
+            anc[a, b] = True
+            depth[b] += 1
+            a = up[a]
+    # the trunk the limbs hang from: bones over 40% of the rig hangs from;
+    # two bones whose nearest common ancestor is in it are on different limbs
+    trunk = anc.sum(1) > 0.4 * n
+    apart = np.zeros((n, n), bool)
+    for a in range(n):
+        for b in range(n):
+            common = np.nonzero(anc[:, a] & anc[:, b])[0]
+            if len(common) and not (anc[a, b] or anc[b, a]):
+                apart[a, b] = hops[a, b] >= 3 and trunk[common[depth[common].argmax()]]
+    # each bone as segments from its joint to its children's (a tip carries on past its joint)
+    world = {}
+
+    def at(i):
+        if i not in world:
+            m = node_matrix(nodes[i])
+            world[i] = at(parent[i]) @ m if i in parent else m
+        return world[i]
+
+    head = np.array([(rig['G'] @ at(node))[:3, 3] for node in joints])
+    segs = []
+    for i in range(n):
+        kids = np.nonzero(up == i)[0]
+        if len(kids):
+            segs += [(i, c) for c in kids]
+        else:
+            segs.append((i, -1))
+    A = np.array([head[i] for i, _ in segs])
+    B = np.array([head[c] if c >= 0 else head[i] + 0.6 * (head[i] - head[up[i]]) if up[i] >= 0 else head[i] for i, c in segs])
+    bone = np.array([i for i, _ in segs])
+    moved = cut = 0
+    for part in parts:
+        prims = []
+        for p in part['prims']:
+            if 'J' not in p:
+                prims.append(p)
+                continue
+            P, J, Wt = p['P'], p['J'].copy(), p['Wt'].copy()
+            dist = np.full((len(P), n), np.inf)
+            for s in range(0, len(P), 2048):
+                q = P[s: s + 2048, None, :] - A[None]
+                ab = B - A
+                t = np.clip((q * ab).sum(-1) / np.maximum((ab * ab).sum(-1), 1e-12), 0, 1)
+                d = np.linalg.norm(q - t[..., None] * ab, axis=-1)
+                for k in range(len(segs)):
+                    dist[s: s + 2048, bone[k]] = np.minimum(dist[s: s + 2048, bone[k]], d[:, k])
+            main = J[np.arange(len(J)), Wt.argmax(1)]
+            mine = dist[np.arange(len(P)), main]
+            radius = np.array([np.median(mine[main == b]) if (main == b).any() else 0 for b in range(n)])
+            near = dist.argmin(1)
+            tall = np.ptp(P[:, 1])
+            stray = (hops[main, near] >= 3) & (mine > 3 * radius[main] + 0.006 * tall) & (dist.min(1) < 0.5 * mine)
+            moved += int(stray.sum())
+            main[stray] = near[stray]
+            J[stray] = 0
+            J[stray, 0] = near[stray]
+            Wt[stray] = [1.0, 0.0, 0.0, 0.0]
+            Wt[hops[main[:, None], J] > 1] = 0
+            p['J'], p['Wt'] = J, Wt / Wt.sum(1, keepdims=True)
+            m = main[p['I'].reshape(-1, 3)]
+            far = apart[m[:, 0], m[:, 1]] | apart[m[:, 1], m[:, 2]] | apart[m[:, 0], m[:, 2]]
+            cut += int(far.sum())
+            if far.any():
+                p = keep(p, p['I'].reshape(-1, 3)[~far])
+                rehome(p)
+            prims.append(p)
+        part['prims'] = prims
+    return moved, cut
+
+
+def rehome(p, shard=64):
+    """Hand the scraps left loose by the cut (fewer than `shard` triangles:
+    skin of one limb the rig gave to another, thigh that followed the
+    fingers) wholly to the bone of the nearest skin still attached."""
+    P, I = p['P'], p['I'].reshape(-1, 3)
+    span = max(np.ptp(P, 0).max(), 1e-9)
+    _, weld = np.unique(np.round(P / (span * 1e-6)).astype(np.int64), axis=0, return_inverse=True)
+    lab = pieces(weld.ravel()[I].ravel(), weld.max() + 1)[weld.ravel()]
+    tris = np.bincount(lab[I[:, 0]], minlength=lab.max() + 1)
+    small = tris[lab] < shard
+    used = np.zeros(len(P), bool)
+    used[I.ravel()] = True
+    home = np.nonzero(~small & used)[0]
+    if not len(home):
+        return
+    main = p['J'][np.arange(len(P)), p['Wt'].argmax(1)]
+    for k in np.unique(lab[small & used]):
+        vs = np.nonzero((lab == k) & used)[0]
+        d = ((P[vs][:, None, :] - P[home][None, :, :]) ** 2).sum(-1)
+        bone = main[home[d.min(0).argmin()]]
+        p['J'][vs] = [bone, 0, 0, 0]
+        p['Wt'][vs] = [1.0, 0.0, 0.0, 0.0]
 
 
 # --- fitting and textures --------------------------------------------------
@@ -238,13 +393,21 @@ def fit(parts, height, turn, center, up='y', face='z'):
     shift = np.array([(lo[0] + hi[0]) / 2 if center else 0.0, lo[1], (lo[2] + hi[2]) / 2 if center else 0.0])
     for p in prims:
         p['P'] = (p['P'] - shift) * k
-    return tall, k
+    # all of that as one matrix, which a rig's bones must follow too
+    G = np.eye(4)
+    G[:3, :3] = k * R
+    G[:3, 3] = -k * shift
+    return tall, k, G
 
 
 def keep(p, tris):
     """A copy of primitive p with only the triangles given, and their vertices."""
     used, I = np.unique(tris.ravel(), return_inverse=True)
-    return {**p, 'P': p['P'][used], 'N': p['N'][used], 'T': None if p['T'] is None else p['T'][used], 'I': I.ravel()}
+    out = {**p, 'P': p['P'][used], 'N': p['N'][used], 'T': None if p['T'] is None else p['T'][used], 'I': I.ravel()}
+    for k in ('J', 'Wt'):
+        if k in p:
+            out[k] = p[k][used]
+    return out
 
 
 def cut_glow(parts, box, least, greys):
@@ -637,9 +800,19 @@ class Writer:
         return len(self.accessors) - 1
 
 
-def write_glb(path, parts, shades, jpegs, legs=None):
+def weights_u8(Wt):
+    """Skin weights as bytes that add up to exactly 255 for each vertex."""
+    w = np.clip(Wt, 0, None)
+    w = w / np.maximum(w.sum(1, keepdims=True), 1e-12)
+    b = np.round(w * 255).astype(np.int64)
+    b[np.arange(len(b)), b.argmax(1)] += 255 - b.sum(1)
+    return b.astype(np.uint8)
+
+
+def write_glb(path, parts, shades, jpegs, legs=None, rig=None):
     """shades maps a source image to its index in jpegs, the textures written;
-    legs, from rig_legs, goes in the extras of each mesh."""
+    legs, from rig_legs, goes in the extras of each mesh; rig, from rig_of
+    with the fit's matrix G added, keeps a skinned model's bones."""
     allP = np.concatenate([p['P'] for part in parts for p in part['prims']])
     lo, hi = allP.min(0), allP.max(0)
     mid = (lo + hi) / 2
@@ -670,6 +843,10 @@ def write_glb(path, parts, shades, jpegs, legs=None):
             if 'leg' in p:
                 # which leg (255 for none) and how much it follows it
                 attrs['_LEG'] = W.accessor(p['leg'].tobytes(), 5121, n, 'VEC4', ARRAY_BUFFER)
+            if 'J' in p:
+                wide = p['J'].max() > 255
+                attrs['JOINTS_0'] = W.accessor(p['J'].astype('<u2' if wide else np.uint8).tobytes(), 5123 if wide else 5121, n, 'VEC4', ARRAY_BUFFER)
+                attrs['WEIGHTS_0'] = W.accessor(weights_u8(p['Wt']).tobytes(), 5121, n, 'VEC4', ARRAY_BUFFER, normalized=True)
             big = n > 65535
             idx = p['I'].astype('<u4' if big else '<u2')
             key = (p['mat'], p['double'], tex)
@@ -691,11 +868,40 @@ def write_glb(path, parts, shades, jpegs, legs=None):
             mesh['name'] = part['mesh']
         if legs:
             mesh['extras'] = {'legs': legs}
-        node = {'mesh': len(meshes), 'translation': mid.tolist(), 'scale': [half] * 3}
+        if part.get('skinned') and rig:
+            # a skinned mesh's own node does not move it (its bones do), so
+            # its quantisation goes into the inverse bind matrices below
+            node = {'mesh': len(meshes), 'skin': 0}
+        else:
+            node = {'mesh': len(meshes), 'translation': mid.tolist(), 'scale': [half] * 3}
         if part['node'] is not None:
             node['name'] = part['node']
         meshes.append(mesh)
         nodes.append(node)
+    roots = list(range(len(nodes)))
+    skins = []
+    if rig:
+        # the bones as they were, under a root that sizes and turns them
+        # like the mesh
+        order = sorted(rig['keep'])
+        new = {old: len(nodes) + 1 + i for i, old in enumerate(order)}
+        roots.append(len(nodes))
+        nodes.append({'name': 'rig', 'matrix': rig['G'].T.ravel().tolist(), 'children': [new[o] for o in order if rig['parent'].get(o) not in rig['keep']]})
+        for old in order:
+            src = rig['nodes'][old]
+            node = {k: src[k] for k in ('name', 'translation', 'rotation', 'scale', 'matrix') if k in src}
+            kids = [new[c] for c in src.get('children', []) if c in rig['keep']]
+            if kids:
+                node['children'] = kids
+            nodes.append(node)
+        D = np.eye(4)
+        D[:3, :3] *= half
+        D[:3, 3] = mid
+        ibm = rig['ibm'] @ np.linalg.inv(rig['G']) @ D
+        skins.append({
+            'joints': [new[j] for j in rig['joints']],
+            'inverseBindMatrices': W.accessor(np.ascontiguousarray(ibm.transpose(0, 2, 1)).astype('<f4').tobytes(), 5126, len(ibm), 'MAT4'),
+        })
     images = [{'bufferView': W.view(jpg), 'mimeType': 'image/jpeg', 'name': f'shade{i}'} for i, jpg in enumerate(jpegs)]
     while len(W.blob) % 4:
         W.blob += b'\0'
@@ -704,7 +910,7 @@ def write_glb(path, parts, shades, jpegs, legs=None):
         'extensionsUsed': ['KHR_mesh_quantization'],
         'extensionsRequired': ['KHR_mesh_quantization'],
         'scene': 0,
-        'scenes': [{'nodes': list(range(len(nodes)))}],
+        'scenes': [{'nodes': roots}],
         'nodes': nodes,
         'meshes': meshes,
         'materials': materials,
@@ -712,6 +918,8 @@ def write_glb(path, parts, shades, jpegs, legs=None):
         'bufferViews': W.views,
         'buffers': [{'byteLength': len(W.blob)}],
     }
+    if skins:
+        doc['skins'] = skins
     if images:
         doc['images'] = images
         doc['textures'] = [{'sampler': 0, 'source': i} for i in range(len(images))]
@@ -741,6 +949,7 @@ def main():
     ap.add_argument('--colour', '--color', action='store_true', help='keep the textures in colour (a creature, not a ghost)')
     ap.add_argument('--tris', type=int, help='thin the model to about this many triangles')
     ap.add_argument('--legs', type=int, help='find this many legs and rig them for the game to walk (a spider: 8)')
+    ap.add_argument('--tidy-rig', action='store_true', help='for an auto-rigged model: each vertex follows only its main bone and the bones joined to it, and skin stretched between distant bones (a hand against a thigh) is cut')
     ap.add_argument('--preview', help='also save the texture here, to look at')
     ap.add_argument('--glow', help='x0,y0,z0,x1,y1,z1: a box in metres (after sizing) whose bright triangles become the part named glow; write --glow=-0.3,... when it starts with a minus')
     ap.add_argument('--glow-min', type=float, default=0.5, help='how bright (0 to 1, in the base colour) a triangle in the box must be to glow')
@@ -748,7 +957,15 @@ def main():
 
     doc, blob = read_glb(a.src)
     parts = gather(doc, blob)
-    tall, k = fit(parts, a.height, a.turn, a.center, a.up, a.face)
+    rig = rig_of(doc, blob)
+    if rig and (a.tris or a.glow or a.legs):
+        fail('--tris, --glow and --legs do not work on a rigged model yet')
+    tall, k, G = fit(parts, a.height, a.turn, a.center, a.up, a.face)
+    if rig:
+        rig['G'] = G
+        if a.tidy_rig:
+            moved, cut = tidy_rig(parts, rig)
+            print(f'  tidied the rig: {moved:,} vertices given to the bone they lie against, {cut:,} triangles cut between limbs')
 
     # the base colour images, read once
     pics = {}
@@ -791,7 +1008,7 @@ def main():
         for part in parts:
             part['prims'] = [thin(p, max(a.tris * (len(p['I']) // 3) / total, min(len(p['I']) // 3, 50))) for p in part['prims']]
     legs = rig_legs(parts, a.legs) if a.legs else None
-    size = write_glb(a.dst, parts, shades, jpegs, legs)
+    size = write_glb(a.dst, parts, shades, jpegs, legs, rig)
 
     verts = sum(len(p['P']) for part in parts for p in part['prims'])
     tris = sum(len(p['I']) // 3 for part in parts for p in part['prims'])
@@ -805,6 +1022,8 @@ def main():
     lo, hi = allP.min(0), allP.max(0)
     print(f'{a.dst}: {size:,} bytes; {verts:,} vertices, {tris:,} triangles, {len(jpegs)} texture(s) ({sum(map(len, jpegs)):,} bytes)')
     print(f'  x {lo[0]:.3f}..{hi[0]:.3f}  y {lo[1]:.3f}..{hi[1]:.3f}  z {lo[2]:.3f}..{hi[2]:.3f}')
+    if rig:
+        print(f"  rigged: {len(rig['joints'])} bones, kept for the game to pose")
     for leg in legs or []:
         moving = sum(int((p['leg'][:, 0] == i).sum()) for part in parts for p in part['prims'] for i in [legs.index(leg)])
         print(f"  leg {legs.index(leg)}: {'-x' if leg['side'] < 0 else '+x'} side, {leg['order'] + 1} from the front, hip {leg['hip']}, {moving:,} vertices")

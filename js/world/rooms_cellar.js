@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { GeoBuilder, mat } from '../core/geo.js';
+import { mat } from '../core/geo.js';
 import { Y } from './layout.js';
 import * as P from './props.js';
 import { Snake } from '../creatures/snakes.js';
+import { fetchSkeleton } from '../creatures/skeleton.js';
 import { Door } from './dynamic.js';
 import { cobweb, webQuad } from './build.js';
 import { flashScreen } from './rooms_upper.js';
@@ -178,44 +179,6 @@ export function cellarRooms(ctx) {
   });
 }
 
-function skeleton(ctx) {
-  const B = new GeoBuilder('skeleton');
-  // upper body, pivoting at the hips
-  B.rod('bone', 0, 0, 0, 0, 0.55, 0, 0.022, 0.018, 6);
-  for (let i = 0; i < 5; i++) {
-    const r = 0.12 - Math.abs(i - 1.5) * 0.012;
-    const ring = new THREE.TorusGeometry(r, 0.011, 4, 14, Math.PI * 1.3);
-    B.geom('bone', ring, mat(0, 0.24 + i * 0.065, 0.02, 0, Math.PI / 2, Math.PI * 1.35));
-    ring.dispose();
-  }
-  B.box('bone', 0, 0.56, 0, 0.32, 0.03, 0.05);
-  for (const s of [-1, 1]) {
-    B.rod('bone', s * 0.16, 0.55, 0, s * 0.2, 0.28, 0.08, 0.016, 0.014, 5);
-    B.rod('bone', s * 0.2, 0.28, 0.08, s * 0.16, 0.05, 0.25, 0.012, 0.01, 5);
-    for (let f = 0; f < 4; f++) B.rod('bone', s * 0.16, 0.05, 0.25, s * (0.14 + f * 0.012), -0.02, 0.32, 0.004, 0.003, 3);
-  }
-  B.sphere('bone', 0, 0.74, 0.02, 0.1, 0.9, 1.1, 1.05, 12, 10);
-  for (const s of [-1, 1]) B.sphere('blackMatte', s * 0.035, 0.76, 0.1, 0.025, 1, 1, 0.6, 8, 6);
-  B.sphere('blackMatte', 0, 0.71, 0.11, 0.012, 1, 1.4, 0.6, 6, 5);
-  const upper = B.build(ctx.mat);
-  const jawB = new GeoBuilder('jaw');
-  jawB.box('bone', 0, -0.03, 0.05, 0.12, 0.04, 0.1);
-  for (let i = 0; i < 6; i++) jawB.box('porcelain', -0.04 + i * 0.016, 0.0, 0.098, 0.01, 0.018, 0.01);
-  const jaw = jawB.build(ctx.mat);
-  const jawPivot = new THREE.Group();
-  jawPivot.position.set(0, 0.69, 0.0);
-  jawPivot.add(jaw);
-  upper.add(jawPivot);
-  const lowerB = new GeoBuilder('legs');
-  lowerB.box('bone', 0, 0, 0, 0.26, 0.08, 0.12);
-  for (const s of [-1, 1]) {
-    lowerB.rod('bone', s * 0.08, 0, 0, s * 0.09, 0, 0.45, 0.02, 0.017, 5);
-    lowerB.rod('bone', s * 0.09, 0, 0.45, s * 0.09, 0, 0.88, 0.016, 0.013, 5);
-  }
-  const lower = lowerB.build(ctx.mat);
-  return { upper, lower, jawPivot };
-}
-
 function crypt(ctx) {
   const B = ctx.B.cel;
   const K = ctx.kit;
@@ -235,16 +198,18 @@ function crypt(ctx) {
   lid.position.set(cx, top + 0.46, cz);
   lid.castShadow = true;
   ctx.scene.add(lid);
-  // the one inside
-  const sk = skeleton(ctx);
-  const hip = new THREE.Group();
-  hip.position.set(cx, top + 0.12, cz + 0.05);
-  hip.add(sk.upper);
-  sk.lower.position.set(0, 0, 0);
-  hip.add(sk.lower);
-  // lying face up, head toward -z like the coffin
-  sk.upper.rotation.x = -Math.PI / 2;
-  ctx.scene.add(hip);
+  // the one inside, lying face up with its head toward -z like the coffin:
+  // the skeleton model (with the lid on, nobody sees it arrive), or, if it
+  // cannot be had, a picture of it that does not move
+  let bones = null;
+  fetchSkeleton().then((sk) => {
+    if (!sk) return;
+    // feet at the foot of the coffin, its back on the bottom
+    sk.root.position.set(cx, top + 0.145, cz + 0.87);
+    sk.root.rotation.x = -Math.PI / 2;
+    ctx.scene.add(sk.root);
+    bones = sk;
+  });
   // candles around the coffin
   const pts = [];
   for (const [dx, dz] of [
@@ -290,8 +255,7 @@ function crypt(ctx) {
     lid.position.set(cx + st.lidK * 0.75, top + 0.46 - st.lidK * 0.4, cz + st.lidK * 0.2);
     lid.rotation.z = -st.lidK * 0.6;
     st.sit += (st.sitT - st.sit) * Math.min(1, dt * (st.sitT > 0.5 ? 2.2 : 0.6));
-    sk.upper.rotation.x = -Math.PI / 2 + st.sit * 1.45;
-    sk.jawPivot.rotation.x = st.jaw * (0.35 + 0.1 * Math.sin(t * 20));
+    if (bones) bones.pose(st.sit, st.jaw, t, dt, ctx.camera.position);
   });
   D.zone({
     id: 'coffin',
